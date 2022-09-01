@@ -1,7 +1,7 @@
 import typer
 
 
-app = typer.Typer()
+app = typer.Typer(help="长稳测试工具集 CLI.")
 
 
 @app.command(help='stress get objects')
