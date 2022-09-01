@@ -7,7 +7,9 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
-from cli.main import app
+import typer
+
+app = typer.Typer(help="长稳测试工具集 CLI.")
 
 
 if __name__ == '__main__':

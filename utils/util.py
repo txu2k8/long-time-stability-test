@@ -1,5 +1,8 @@
 import os
 import hashlib
+from typing import List
+
+from config.models import FileInfo
 
 
 def get_md5_value(file_path):
@@ -8,24 +11,32 @@ def get_md5_value(file_path):
     :param file_path:
     :return:
     """
-    md5 = hashlib.md5()
-    md5.update(file_path)
-    md5sum = md5.hexdigest()
-    return md5sum
+    try:
+        h_md5 = hashlib.md5()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(), b""):
+                h_md5.update(chunk)
+        return h_md5.hexdigest()
+    except Exception as e:
+        raise Exception(e)
 
 
-def get_local_files_md5(local_path) -> dict:
+def get_local_files_md5(local_path) -> List[FileInfo]:
     """
     获取本地文件路径下所以文件及其MD5
     :param local_path:
     :return:
     """
-    files_md5 = {}
+    file_list = []
     for dir_path, dir_names, file_names in os.walk(local_path):
         for filename in file_names:
             file_full_path = os.path.join(dir_path, filename)
-            files_md5[file_full_path] = {
-                'name': filename,
-                'md5': get_md5_value(file_full_path)
-            }
-    return files_md5
+            md5 = get_md5_value(file_full_path)
+            file_info = FileInfo(
+                name=filename,
+                full_path=file_full_path,
+                md5=md5,
+                tags="md5={}".format(md5)
+            )
+            file_list.append(file_info)
+    return file_list

@@ -2,7 +2,7 @@ from loguru import logger
 
 import subprocess
 
-DEFAULT_MC_BIN = r'D:\docker\mc.exe'  # mc | mc.exe
+DEFAULT_MC_BIN = r'D:\minio\mc.exe'  # mc | mc.exe
 
 
 class MClient(object):
@@ -38,7 +38,7 @@ class MClient(object):
         return rc, output
 
     def admin_config_set(self, target, kv):
-        args = 'admin config set {} {} {}'.format(self.bin_path, self.alias, target, kv)
+        args = 'admin config set {} {} {}'.format(self.alias, target, kv)
 
         rc, output = self._exec(args)
         if rc == 0:
@@ -51,7 +51,27 @@ class MClient(object):
     def set_core_loglevel(self, loglevel):
         return self.admin_config_set('loglevel', f'loglevel={loglevel}')
 
-    def cp(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
+    def mb(self, bucket):
+        args = 'mb --ignore-existing {}/{}'.format(self.alias, bucket)
+
+        rc, output = self._exec(args)
+        if rc == 0:
+            logger.info("桶创建成功! - {}".format(bucket))
+        else:
+            logger.error(output)
+            raise Exception("桶创建失败! - {}".format(bucket))
+        return rc, output
+
+    def put(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
+        """
+        uc cp命令上传对象
+        :param src_path:
+        :param bucket:
+        :param dst_path:
+        :param disable_multipart:
+        :param tags:
+        :return:
+        """
         tags += "{}disable-multipart={}".format('&' if tags else '', disable_multipart)
         args = 'cp --tags "{}" {} {}/{}/{}'.format(tags, src_path, self.alias, bucket, dst_path)
         if disable_multipart:
@@ -59,3 +79,18 @@ class MClient(object):
         rc, output = self._exec(args)
         return rc, output
 
+    def get(self, bucket, obj_path, local_path, disable_multipart=False, tags=""):
+        """
+        uc cp命令下载对象
+        :param bucket:
+        :param obj_path:
+        :param local_path:
+        :param disable_multipart:
+        :param tags:
+        :return:
+        """
+        args = 'cp {}/{}/{} {}'.format(self.alias, bucket, obj_path, local_path)
+        if disable_multipart:
+            args += " --disable-multipart"
+        rc, output = self._exec(args)
+        return rc, output
