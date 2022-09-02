@@ -9,13 +9,17 @@ class MClient(object):
 
     _alias = None
 
-    def __init__(self, endpoint, access_key, secret_key, tls=False, alias='lts', bin_path=DEFAULT_MC_BIN):
+    def __init__(self, endpoint, access_key, secret_key, tls=False, alias='play', bin_path=DEFAULT_MC_BIN):
         self.endpoint = endpoint
         self.access_key = access_key
         self.secret_key = secret_key
         self.tls = tls
         self.alias = alias
         self.bin_path = bin_path
+
+        if not endpoint.startswith('http'):
+            self.endpoint = f'https://{endpoint}' if self.tls else f'http://{endpoint}'
+
         if not self._alias:
             self.set_alias()
 
@@ -77,6 +81,10 @@ class MClient(object):
         if disable_multipart:
             args += " --disable-multipart"
         rc, output = self._exec(args)
+        if rc == 0:
+            logger.info("上传成功！{}/{}".format(bucket, dst_path))
+        else:
+            logger.error('上传失败！{}：{}'.format(src_path, output))
         return rc, output
 
     def get(self, bucket, obj_path, local_path, disable_multipart=False, tags=""):

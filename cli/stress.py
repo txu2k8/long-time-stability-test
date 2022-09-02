@@ -7,6 +7,10 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
+import loguru
+import typer
+
+from config.models import ClientType
 from cli.main import app
 from stress.put import put_obj
 
@@ -18,13 +22,14 @@ def get(name: str):
 
 @app.command(help='stress put objects')
 def put(
+        endpoint: str = '',
         access_key: str = '',
         secret_key: str = '',
         tls: bool = False,
         bucket: str = '',
-        bucket_num: int = 1,
+        bucket_num: int = typer.Option(1, min=1),
         disable_multipart: bool = False,
-        concurrent: int = 1,
+        concurrent: int = typer.Option(1, min=1),
         md5: bool = True,
         obj_prefix: str = '',
         obj_noprefix: bool = False,
@@ -33,9 +38,11 @@ def put(
         obj_generator: str = '',
         obj_randsize: str = '',
         duration: str = '',
-        clear: bool = False
+        clear: bool = typer.Option(False, help="clear all data"),
+        client_type: ClientType = typer.Option(ClientType.MC.value, help="Select the IO client")
 ):
-    put_obj('mc', "http://192.168.1.10:9000", 'minioadmin', 'minioadmin', False, 'lts',
+    loguru.logger.info(client_type)
+    put_obj('mc', "http://127.0.0.1:9000", 'minioadmin', 'minioadmin', False, 'play',
         'bucket', 1,
         'D:\\minio\\upload_data', 3, 2, 2)
 

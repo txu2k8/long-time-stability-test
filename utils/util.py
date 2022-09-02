@@ -36,7 +36,7 @@ def get_local_files_md5(local_path) -> List[FileInfo]:
                 name=filename,
                 full_path=file_full_path,
                 md5=md5,
-                tags="md5={}".format(md5)
+                tags="filename={}&md5={}".format(filename, md5)
             )
             file_list.append(file_info)
     return file_list
