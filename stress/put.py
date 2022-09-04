@@ -28,6 +28,7 @@ def put_obj(
 
     dir_num = int(obj_num * concurrent / depth)  # 文件夹数量
 
+    logger.info("PUT obj_num={}, concurrent={}".format(obj_num, concurrent))
     futures = set()
     with ThreadPoolExecutor(max_workers=None) as executor:
         for x in range(obj_num):

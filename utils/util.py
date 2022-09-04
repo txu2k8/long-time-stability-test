@@ -40,3 +40,14 @@ def get_local_files_md5(local_path) -> List[FileInfo]:
             )
             file_list.append(file_info)
     return file_list
+
+
+def mkdir_if_not_exist(dir_path):
+    """
+    如果文件夹不存在，创建
+    :param dir_path:
+    :return:
+    """
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+    return
