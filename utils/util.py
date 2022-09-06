@@ -30,13 +30,14 @@ def get_local_files_md5(local_path) -> List[FileInfo]:
     file_list = []
     for dir_path, dir_names, file_names in os.walk(local_path):
         for filename in file_names:
+            file_type = os.path.splitext(filename)[-1]
             file_full_path = os.path.join(dir_path, filename)
             md5 = get_md5_value(file_full_path)
             file_info = FileInfo(
                 name=filename,
                 full_path=file_full_path,
                 md5=md5,
-                tags="filename={}&md5={}".format(filename, md5)
+                tags="filename={}&md5={}&type={}".format(filename, md5, file_type)
             )
             file_list.append(file_info)
     return file_list

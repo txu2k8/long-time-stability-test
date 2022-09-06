@@ -10,7 +10,10 @@
 from config.globals import *
 
 
+__version__ = "1.0.0"
+
 __all__ = [
+    "__version__",
     # 基本方法
     "ConfigIni",
     # 全局内存变量-读写

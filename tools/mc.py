@@ -1,5 +1,7 @@
-from loguru import logger
+import time
 
+from loguru import logger
+import asyncio
 import subprocess
 
 DEFAULT_MC_BIN = r'D:\minio\mc.exe'  # mc | mc.exe
@@ -23,13 +25,33 @@ class MClient(object):
         if not self._alias:
             self.set_alias()
 
-    def _exec(self, args):
+    def _args2cmd(self, args):
         if self.tls:
             cmd = '{} --insecure {}'.format(self.bin_path, args)
         else:
             cmd = '{} {}'.format(self.bin_path, args)
         logger.debug(cmd)
+        return cmd
+
+    def _exec(self, args):
+        cmd = self._args2cmd(args)
         return subprocess.getstatusoutput(cmd)
+
+    async def _async_exec(self, args):
+        cmd = self._args2cmd(args)
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE)
+        await asyncio.sleep(2)
+        stdout, stderr = await proc.communicate()
+
+        rc = proc.returncode
+        if stdout:
+            logger.debug(stdout.decode())
+        if stderr:
+            logger.error(stderr.decode())
+        return rc
 
     def set_alias(self):
         args = "alias set {} {} {} {}".format(self.alias, self.endpoint, self.access_key, self.secret_key)
@@ -66,7 +88,7 @@ class MClient(object):
             raise Exception("桶创建失败! - {}".format(bucket))
         return rc, output
 
-    def put(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
+    async def put(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
         """
         uc cp命令上传对象
         :param src_path:
@@ -80,12 +102,12 @@ class MClient(object):
         args = 'cp --tags "{}" {} {}/{}/{}'.format(tags, src_path, self.alias, bucket, dst_path)
         if disable_multipart:
             args += " --disable-multipart"
-        rc, output = self._exec(args)
+        rc = await self._async_exec(args)
         if rc == 0:
             logger.info("上传成功！{}/{}".format(bucket, dst_path))
         else:
-            logger.error('上传失败！{}：{}'.format(src_path, output))
-        return rc, output
+            logger.error('上传失败！{}'.format(src_path))
+        return rc
 
     def get(self, bucket, obj_path, local_path, disable_multipart=False, tags=""):
         """
