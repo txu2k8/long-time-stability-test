@@ -15,5 +15,6 @@ class FileInfo(BaseModel):
     """文件信息 - 数据模型"""
     name: Text
     full_path: Text
+    file_type: Text = ''
     md5: Text
     tags: Text
