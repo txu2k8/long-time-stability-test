@@ -10,7 +10,7 @@
 import os
 from loguru import logger
 
-import utils.util
+from utils.util import get_md5_value, zfill
 from stress.bucket import generate_bucket_name
 from stress.put import PutObject
 
@@ -37,13 +37,13 @@ class GetObject(PutObject):
         # 准备
         bucket_idx = idx % self.bucket_num
         bucket = generate_bucket_name(self.bucket_prefix, bucket_idx)
-        obj_path = f"{self.obj_prefix}{str(idx)}"
+        obj_path = self.obj_prefix + zfill(idx)
         local_file_path = os.path.join(self.local_path, obj_path.replace('/', '_'))
 
         rc, expect_md5 = await client.get_obj_md5(bucket, obj_path)
         await client.get(bucket, obj_path, local_file_path, self.disable_multipart)
         if expect_md5:
-            download_md5 = utils.util.get_md5_value(local_file_path)
+            download_md5 = get_md5_value(local_file_path)
             if download_md5 != expect_md5:
                 logger.error("MD5不一致：\n本地：{}，MD5={}\n对象：{}/{}，MD5={}".format(
                     local_file_path, download_md5, bucket, obj_path, expect_md5))

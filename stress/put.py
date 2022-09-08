@@ -12,8 +12,7 @@ import datetime
 import asyncio
 from loguru import logger
 
-from utils.util import get_local_files
-from config.models import ClientType
+from utils.util import get_local_files, zfill
 from stress.client import init_clients
 from stress.bucket import generate_bucket_name, make_bucket_if_not_exist
 
@@ -75,8 +74,8 @@ class PutObject(object):
         bucket_idx = idx % self.bucket_num
         bucket = generate_bucket_name(self.bucket_prefix, bucket_idx)
         src_file = random.choice(self.file_list)
-        obj_path = f"{self.obj_prefix}{str(idx)}"
-        await client.put(src_file.full_path, bucket, obj_path, self.disable_multipart, tags=src_file.tags)
+        obj_path = self.obj_prefix + zfill(idx)
+        await client.put(src_file.full_path, bucket, obj_path, self.disable_multipart, src_file.tags, src_file.attr)
 
     async def producer(self, queue):
         """

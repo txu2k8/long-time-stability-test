@@ -14,6 +14,8 @@ from loguru import logger
 
 from config import TIME_STR, LOG_DIR, LOG_ROTATION, LOG_RETENTION, get_global_value
 
+info_format = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <4}</level> | <level>{message}</level>"
+
 
 def init_logger(prefix='lts'):
     """
@@ -27,6 +29,11 @@ def init_logger(prefix='lts'):
     # 初始化控制台配置
     loglevel = get_global_value('LOG_LEVEL')
     logger.add(sys.stderr, level=loglevel)
+    # if loglevel == "INFO":
+    #     logger.add(sys.stderr, level=loglevel, format=info_format)
+    # else:
+    #     logger.add(sys.stderr, level=loglevel)
+    #     pass
 
     # 初始化日志配置 -- all日志文件
     logger.add(
@@ -35,7 +42,9 @@ def init_logger(prefix='lts'):
         retention=LOG_RETENTION,  # '7 days',
         enqueue=True,
         encoding="utf-8",
-        level=loglevel
+        level=loglevel,
+        backtrace=True,
+        diagnose=True
     )
 
     # 初始化日志配置 -- error日志文件

@@ -1,4 +1,8 @@
 import os
+import time
+import re
+import random
+import string
 import hashlib
 import subprocess
 from typing import List
@@ -57,7 +61,8 @@ def get_local_files(local_path) -> List[FileInfo]:
                 full_path=file_full_path,
                 file_type=file_type,
                 md5=md5,
-                tags="filename={}&md5={}&type={}".format(filename, md5, file_type)
+                attr="filename={};md5={};type={}".format(filename, md5, file_type),
+                tags="filename={}&md5={}&type={}".format(filename, md5, file_type),
             )
             file_list.append(file_info)
     return file_list
@@ -72,3 +77,96 @@ def mkdir_if_not_exist(dir_path):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     return
+
+
+def zfill(number, width=9):
+    """
+    转换数字为字符串，并以’0‘填充左侧
+    :param number:
+    :param width: 最小宽度，如实际数字小于最小宽度，左侧填0
+    :return: str, __zfill(123, 6) -> '000123'
+    """
+    return str(number).zfill(width)
+
+
+def popen_exec_cmd(cmd_spec, timeout=7200):
+    """
+    Executes command and Returns (rc, output) tuple
+    :param cmd_spec: Command to be executed
+    :param timeout
+    :return:
+    """
+
+    logger.info('Execute: {cmds}'.format(cmds=cmd_spec))
+    p = subprocess.Popen(cmd_spec, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    t_beginning = time.time()
+    while True:
+        if p.poll() is not None:
+            break
+        seconds_passed = time.time() - t_beginning
+        if timeout and seconds_passed > timeout:
+            p.terminate()
+            raise TimeoutError('TimeOutError: {0} seconds'.format(timeout))
+        time.sleep(0.1)
+    rc = p.returncode
+    stdout, stderr = p.stdout.read(), p.stderr.read()
+    if stdout:
+        logger.debug(stdout.decode())
+    if stderr:
+        logger.error(stderr.decode())
+    return rc, stdout, stderr
+
+
+def generate_random_string(str_len=16):
+    """
+    生产随机字符串
+    :param str_len: byte
+    :return:
+    """
+
+    base_string = string.ascii_letters + string.digits
+    # base_string = string.printable
+    base_string_len = len(base_string)
+    multiple = 1
+    if base_string_len < str_len:
+        multiple = (str_len // base_string_len) + 1
+
+    return ''.join(random.sample(base_string * multiple, str_len))
+
+
+def size_convert_str2byte(str_size, ratio=1024):
+    """
+    转换 1K,1M,1G,1T 为byte数，转换率：1024
+    :param str_size:such as 1KB,1MB,1GB,1TB
+    :param ratio: 转换倍率，默认1024
+    :return:size (byte)
+    """
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
+    keys = re.findall(r'(\d+)([B_K_M_G_T_P_Z]+)', str_size.upper())
+    if len(keys) != 1:
+        raise Exception('无效的str_size：{}，期望如：1MB、2GB'.format(str_size))
+    value, unit = keys[0]
+    try:
+        power = units.index(unit)
+    except Exception as e:
+        raise Exception("无效的单位：{}，期望：{}\n {}".format(unit, units, e))
+    return int(value) * (ratio**power)
+
+
+def size_convert_byte2str(value):
+    """
+    将字节数转换为易读的size， 10000 -> 9.77KB
+    :param value:
+    :return:
+    """
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
+    size = 1024.0
+    for i in range(len(units)):
+        if (value / size) < 1:
+            return "%.2f%s" % (value, units[i])
+        value = value / size
+
+
+if __name__ == "__main__":
+    pass
+    print(size_convert_str2byte('1G'))

@@ -7,17 +7,19 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
-import json
 import re
+from abc import ABC
 
 from loguru import logger
 import asyncio
 import subprocess
 
+from tools.interface import Interface
+
 DEFAULT_S3CMD_BIN = r'python D:\\minio\\s3cmd\\s3cmd'  # s3cmd | /usr/bin/s3cmd
 
 
-class S3CmdClient(object):
+class S3CmdClient(Interface, ABC):
     def __init__(self, endpoint, access_key, secret_key, tls=False, bin_path=DEFAULT_S3CMD_BIN):
         self.endpoint = endpoint
         self.access_key = access_key
@@ -88,7 +90,7 @@ class S3CmdClient(object):
             raise Exception("桶创建失败! - {}".format(bucket))
         return rc, output
 
-    async def put(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
+    async def put(self, src_path, bucket, dst_path, disable_multipart=False, tags="", attr=""):
         """
         s3cmd put FILE [FILE...] s3://BUCKET[/PREFIX] 命令上传对象
         :param src_path:
@@ -96,9 +98,11 @@ class S3CmdClient(object):
         :param dst_path:
         :param disable_multipart:
         :param tags:
+        :param attr:
         :return:
         """
-        # tags += "{}disable-multipart={}".format('&' if tags else '', disable_multipart)
+        # tags += "{}disable-multipart={}".format('&' if attr else '', disable_multipart)
+        # attr += "{}disable-multipart={}".format(';' if attr else '', disable_multipart)
         args = 'put {} s3://{}/{}'.format(src_path, bucket, dst_path)
         if disable_multipart:
             args += " --disable-multipart"
@@ -130,17 +134,32 @@ class S3CmdClient(object):
 
     async def delete(self, bucket, dst_path):
         """
-        uc rm命令删除对象
+        s3cmd del s3://BUCKET/OBJECT 命令删除对象
         :param bucket:
         :param dst_path:
         :return:
         """
-        args = 'rm {}/{}/{}'.format(self.alias, bucket, dst_path)
+        args = 'del s3://{}/{}'.format(bucket, dst_path)
         rc, _, _ = await self._async_exec(args)
         if rc == 0:
             logger.info("删除成功！{}/{}".format(bucket, dst_path))
         else:
             logger.error('删除失败！{}/{}'.format(bucket, dst_path))
+        return rc
+
+    async def list(self, bucket, obj_path):
+        """
+        s3cmd ls [s3://BUCKET[/PREFIX]] 命令 列表查询对象
+        :param bucket:
+        :param obj_path:
+        :return:
+        """
+        args = 'ls s3://{}/{}'.format(bucket, obj_path)
+        rc, _, _ = await self._async_exec(args)
+        if rc == 0:
+            logger.info("列表对象成功！{}/{}".format(bucket, obj_path))
+        else:
+            logger.error("列表对象失败！{}/{}".format(bucket, obj_path))
         return rc
 
     async def tag_list(self, bucket, obj_path):
@@ -155,7 +174,7 @@ class S3CmdClient(object):
 
     async def get_obj_md5(self, bucket, obj_path):
         """
-        获取tag中的md5列表
+        s3cmd info 命令获取对象的md5
         :param bucket:
         :param obj_path:
         :return:
@@ -166,8 +185,11 @@ class S3CmdClient(object):
         if rc == 0:
             logger.info("获取对象信息成功！{}/{}".format(bucket, obj_path))
             md5s = re.findall(r'MD5 sum:\s+(.+)\n', stdout.decode())
+            # md5s = re.findall(r'x-amz-meta-md5:\s+(.+)\n', stdout.decode())  # mc 上传attr
             if md5s:
                 md5 = md5s[0]
+            else:
+                logger.error("对象元数据中未获取到x-amz-meta-md5 ！{}/{}".format(bucket, obj_path))
         else:
             logger.error("获取对象信息失败！{}/{}".format(bucket, obj_path))
         return rc, md5

@@ -8,15 +8,18 @@
 @description:
 """
 import json
+from abc import ABC
 
 from loguru import logger
 import asyncio
 import subprocess
 
+from tools.interface import Interface
+
 DEFAULT_MC_BIN = r'D:\minio\mc.exe'  # mc | mc.exe
 
 
-class MClient(object):
+class MClient(Interface, ABC):
 
     _alias = None
 
@@ -97,7 +100,7 @@ class MClient(object):
             raise Exception("桶创建失败! - {}".format(bucket))
         return rc, output
 
-    async def put(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
+    async def put(self, src_path, bucket, dst_path, disable_multipart=False, tags="", attr=""):
         """
         uc cp命令上传对象
         :param src_path:
@@ -105,10 +108,12 @@ class MClient(object):
         :param dst_path:
         :param disable_multipart:
         :param tags:
+        :param attr:
         :return:
         """
         tags += "{}disable-multipart={}".format('&' if tags else '', disable_multipart)
-        args = 'cp --tags "{}" {} {}/{}/{}'.format(tags, src_path, self.alias, bucket, dst_path)
+        attr += "{}disable-multipart={}".format(';' if attr else '', disable_multipart)
+        args = 'cp --tags "{}" --attr "{}" {} {}/{}/{}'.format(tags, attr, src_path, self.alias, bucket, dst_path)
         if disable_multipart:
             args += " --disable-multipart"
         rc, _, _ = await self._async_exec(args)
@@ -152,6 +157,21 @@ class MClient(object):
             logger.error('删除失败！{}/{}'.format(bucket, dst_path))
         return rc
 
+    async def list(self, bucket, obj_path):
+        """
+        mc ls 命令 列表查询对象
+        :param bucket:
+        :param obj_path:
+        :return:
+        """
+        args = 'ls {}/{}/{}'.format(self.alias, bucket, obj_path)
+        rc, _, _ = await self._async_exec(args)
+        if rc == 0:
+            logger.info("列表对象成功！{}/{}".format(bucket, obj_path))
+        else:
+            logger.error("列表对象失败！{}/{}".format(bucket, obj_path))
+        return rc
+
     async def tag_list(self, bucket, obj_path):
         """
         获取tag列表
@@ -171,7 +191,7 @@ class MClient(object):
             logger.error("获取对象标签失败！{}/{}".format(bucket, obj_path))
         return rc, tag_dict
 
-    async def get_obj_md5(self, bucket, obj_path):
+    async def get_obj_md5_by_tag(self, bucket, obj_path):
         """
         获取tag中的md5列表
         :param bucket:
@@ -184,10 +204,42 @@ class MClient(object):
         if rc == 0:
             logger.info("获取对象标签成功！{}/{}".format(bucket, obj_path))
             json_output = json.loads(stdout.decode().strip('\n'))
-            if json_output['status'] == 'success':
+            if json_output['status'] == 'success' and 'tagset' in json_output:
                 tag_dict = json_output['tagset']
                 if 'md5' in tag_dict:
                     md5 = tag_dict['md5']
         else:
             logger.error("获取对象标签失败！{}/{}".format(bucket, obj_path))
+        return rc, md5
+
+    async def get_obj_md5_by_attr(self, bucket, obj_path):
+        """
+        获取attr中的md5
+        :param bucket:
+        :param obj_path:
+        :return:
+        """
+        md5 = ''
+        args = 'stat {}/{}/{} --json'.format(self.alias, bucket, obj_path)
+        rc, stdout, stderr = await self._async_exec(args)
+        if rc == 0:
+            logger.info("获取对象信息成功！{}/{}".format(bucket, obj_path))
+            json_output = json.loads(stdout.decode().strip('\n'))
+            if json_output['status'] == 'success':
+                metadata_dict = json_output['metadata']
+                if 'X-Amz-Meta-Md5' in metadata_dict:
+                    md5 = metadata_dict['X-Amz-Meta-Md5']
+                elif 'X-Amz-Meta-S3cmd-Attrs' in metadata_dict:
+                    s3cmd_attrs = metadata_dict['X-Amz-Meta-S3cmd-Attrs']
+                    for item in s3cmd_attrs.split('/'):
+                        k, v = item.split(':')
+                        if k == 'md5':
+                            md5 = v
+                            break
+        else:
+            logger.error("获取对象信息失败！{}/{}".format(bucket, obj_path))
+        return rc, md5
+
+    async def get_obj_md5(self, bucket, obj_path):
+        rc, md5 = await self.get_obj_md5_by_tag(bucket, obj_path)
         return rc, md5
