@@ -7,15 +7,10 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
-import os
-from loguru import logger
-
-from utils.util import get_md5_value, zfill
-from stress.bucket import generate_bucket_name
-from stress.put import PutObject
+from stress.base_worker import BaseWorker
 
 
-class ListObject(PutObject):
+class ListObject(BaseWorker):
     """列表对象"""
 
     def __init__(
@@ -33,12 +28,15 @@ class ListObject(PutObject):
         )
         pass
 
-    async def worker(self, idx, client):
-        # 准备
-        bucket_idx = idx % self.bucket_num
-        bucket = generate_bucket_name(self.bucket_prefix, bucket_idx)
-        obj_path = self.obj_prefix + zfill(idx)
-
+    async def worker(self, client, bucket, idx):
+        """
+        list查询指定对象
+        :param client:
+        :param bucket:
+        :param idx:
+        :return:
+        """
+        obj_path = self.obj_path_calc(idx)
         await client.list(bucket, obj_path)
 
 

@@ -10,12 +10,11 @@
 import os
 from loguru import logger
 
-from utils.util import get_md5_value, zfill
-from stress.bucket import generate_bucket_name
-from stress.put import PutObject
+from utils.util import get_md5_value
+from stress.base_worker import BaseWorker
 
 
-class GetObject(PutObject):
+class GetObject(BaseWorker):
     """下载对象"""
 
     def __init__(
@@ -33,11 +32,16 @@ class GetObject(PutObject):
         )
         pass
 
-    async def worker(self, idx, client):
+    async def worker(self, client, bucket, idx):
+        """
+        下载对象并比较MD5值
+        :param client:
+        :param bucket:
+        :param idx:
+        :return:
+        """
         # 准备
-        bucket_idx = idx % self.bucket_num
-        bucket = generate_bucket_name(self.bucket_prefix, bucket_idx)
-        obj_path = self.obj_prefix + zfill(idx)
+        obj_path = self.obj_path_calc(idx)
         local_file_path = os.path.join(self.local_path, obj_path.replace('/', '_'))
 
         rc, expect_md5 = await client.get_obj_md5(bucket, obj_path)

@@ -10,7 +10,7 @@
 from abc import ABC, abstractmethod
 
 
-class Interface(ABC):
+class ClientInterface(ABC):
     """定义所有客户端工具需要实现的接口"""
     @abstractmethod
     def mb(self, *args, **kwargs):

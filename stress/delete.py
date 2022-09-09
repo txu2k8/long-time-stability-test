@@ -7,12 +7,10 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
-from utils.util import zfill
-from stress.bucket import generate_bucket_name
-from stress.put import PutObject
+from stress.base_worker import BaseWorker
 
 
-class DeleteObject(PutObject):
+class DeleteObject(BaseWorker):
     """删除对象"""
 
     def __init__(
@@ -30,10 +28,13 @@ class DeleteObject(PutObject):
         )
         pass
 
-    async def worker(self, idx, client):
-        # 准备
-        bucket_idx = idx % self.bucket_num
-        bucket = generate_bucket_name(self.bucket_prefix, bucket_idx)
-        obj_path = self.obj_prefix + zfill(idx)
-
+    async def worker(self, client, bucket, idx):
+        """
+        删除指定对象
+        :param client:
+        :param bucket:
+        :param idx:
+        :return:
+        """
+        obj_path = self.obj_path_calc(idx)
         await client.delete(bucket, obj_path)

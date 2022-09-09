@@ -20,13 +20,13 @@ def version_callback(value: bool):
 
 
 def public(
-        debug: bool = typer.Option(False, help="print DEBUG level log"),
+        trace: bool = typer.Option(False, help="print TRACE level log"),
         version: Optional[bool] = typer.Option(
             None, "--version", callback=version_callback
         ),
 ):
     """公共参数"""
-    set_global_value('LOG_LEVEL', 'DEBUG' if debug else LOG_LEVEL)
+    set_global_value('LOG_LEVEL', 'TRACE' if trace else LOG_LEVEL)
 
 
 app = typer.Typer(name="LTS", callback=public, help="长稳测试工具集 CLI.")

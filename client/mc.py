@@ -14,12 +14,12 @@ from loguru import logger
 import asyncio
 import subprocess
 
-from tools.interface import Interface
+from client.clientinterface import ClientInterface
 
 DEFAULT_MC_BIN = r'D:\minio\mc.exe'  # mc | mc.exe
 
 
-class MClient(Interface, ABC):
+class MClient(ClientInterface, ABC):
 
     _alias = None
 
@@ -42,12 +42,14 @@ class MClient(Interface, ABC):
             cmd = '{} --insecure {}'.format(self.bin_path, args)
         else:
             cmd = '{} {}'.format(self.bin_path, args)
-        logger.debug(cmd)
+        logger.log('MC', cmd)
         return cmd
 
     def _exec(self, args):
         cmd = self._args2cmd(args)
-        return subprocess.getstatusoutput(cmd)
+        rc, output = subprocess.getstatusoutput(cmd)
+        logger.debug(output.strip('\n'))
+        return rc, output
 
     async def _async_exec(self, args):
         cmd = self._args2cmd(args)
@@ -60,16 +62,16 @@ class MClient(Interface, ABC):
 
         rc = proc.returncode
         if stdout:
-            logger.debug(stdout.decode())
+            logger.debug(stdout.decode().strip('\n'))
         if stderr:
-            logger.error(stderr.decode())
+            logger.error('Response({}):\n{}'.format(cmd, stderr.decode().strip('\n')))
         return rc, stdout, stderr
 
     def set_alias(self):
         args = "alias set {} {} {} {}".format(self.alias, self.endpoint, self.access_key, self.secret_key)
         rc, output = self._exec(args)
         if rc == 0:
-            logger.info("设置alias成功 -- {}".format(self.alias))
+            logger.success("设置alias成功 -- {}".format(self.alias))
         else:
             logger.error(output)
             raise Exception("设置alias失败 -- {}".format(self.alias))
@@ -80,7 +82,7 @@ class MClient(Interface, ABC):
 
         rc, output = self._exec(args)
         if rc == 0:
-            logger.info("设置config成功 -- {} {}".format(target, kv))
+            logger.success("设置config成功 -- {} {}".format(target, kv))
         else:
             logger.error(output)
             raise Exception("设置config失败 -- {} {}".format(target, kv))
@@ -94,7 +96,7 @@ class MClient(Interface, ABC):
 
         rc, output = self._exec(uc_args)
         if rc == 0:
-            logger.info("桶创建成功! - {}".format(bucket))
+            logger.success("桶创建成功! - {}".format(bucket))
         else:
             logger.error(output)
             raise Exception("桶创建失败! - {}".format(bucket))
@@ -118,7 +120,8 @@ class MClient(Interface, ABC):
             args += " --disable-multipart"
         rc, _, _ = await self._async_exec(args)
         if rc == 0:
-            logger.info("上传成功！{} -> {}/{}".format(src_path, bucket, dst_path))
+            logger.success("上传成功！{} -> {}/{}".format(src_path, bucket, dst_path))
+            logger.log("OBJ", "{}/{}".format(bucket, dst_path))
         else:
             logger.error("上传失败！{} -> {}/{}".format(src_path, bucket, dst_path))
         return rc
@@ -137,7 +140,7 @@ class MClient(Interface, ABC):
             args += " --disable-multipart"
         rc, _, _ = await self._async_exec(args)
         if rc == 0:
-            logger.info("下载成功！{}/{} -> {}".format(bucket, obj_path, local_path))
+            logger.success("下载成功！{}/{} -> {}".format(bucket, obj_path, local_path))
         else:
             logger.error("下载失败！{}/{} -> {}".format(bucket, obj_path, local_path))
         return rc
@@ -152,7 +155,8 @@ class MClient(Interface, ABC):
         args = 'rm {}/{}/{}'.format(self.alias, bucket, dst_path)
         rc, _, _ = await self._async_exec(args)
         if rc == 0:
-            logger.info("删除成功！{}/{}".format(bucket, dst_path))
+            logger.success("删除成功！{}/{}".format(bucket, dst_path))
+            logger.log("OBJ", "{}/{}".format(bucket, dst_path))
         else:
             logger.error('删除失败！{}/{}'.format(bucket, dst_path))
         return rc
@@ -167,7 +171,7 @@ class MClient(Interface, ABC):
         args = 'ls {}/{}/{}'.format(self.alias, bucket, obj_path)
         rc, _, _ = await self._async_exec(args)
         if rc == 0:
-            logger.info("列表对象成功！{}/{}".format(bucket, obj_path))
+            logger.success("列表对象成功！{}/{}".format(bucket, obj_path))
         else:
             logger.error("列表对象失败！{}/{}".format(bucket, obj_path))
         return rc
@@ -183,7 +187,7 @@ class MClient(Interface, ABC):
         args = 'tag list {}/{}/{} --json'.format(self.alias, bucket, obj_path)
         rc, stdout, stderr = await self._async_exec(args)
         if rc == 0:
-            logger.info("获取对象标签成功！{}/{}".format(bucket, obj_path))
+            logger.success("获取对象标签成功！{}/{}".format(bucket, obj_path))
             json_output = json.loads(stdout.decode().strip('\n'))
             if json_output['status'] == 'success':
                 tag_dict = json_output['tagset']
@@ -202,7 +206,7 @@ class MClient(Interface, ABC):
         args = 'tag list {}/{}/{} --json'.format(self.alias, bucket, obj_path)
         rc, stdout, stderr = await self._async_exec(args)
         if rc == 0:
-            logger.info("获取对象标签成功！{}/{}".format(bucket, obj_path))
+            logger.success("获取对象标签成功！{}/{}".format(bucket, obj_path))
             json_output = json.loads(stdout.decode().strip('\n'))
             if json_output['status'] == 'success' and 'tagset' in json_output:
                 tag_dict = json_output['tagset']
@@ -223,7 +227,7 @@ class MClient(Interface, ABC):
         args = 'stat {}/{}/{} --json'.format(self.alias, bucket, obj_path)
         rc, stdout, stderr = await self._async_exec(args)
         if rc == 0:
-            logger.info("获取对象信息成功！{}/{}".format(bucket, obj_path))
+            logger.success("获取对象stat信息成功！{}/{}".format(bucket, obj_path))
             json_output = json.loads(stdout.decode().strip('\n'))
             if json_output['status'] == 'success':
                 metadata_dict = json_output['metadata']

@@ -14,12 +14,12 @@ from loguru import logger
 import asyncio
 import subprocess
 
-from tools.interface import Interface
+from client.clientinterface import ClientInterface
 
 DEFAULT_S3CMD_BIN = r'python D:\\minio\\s3cmd\\s3cmd'  # s3cmd | /usr/bin/s3cmd
 
 
-class S3CmdClient(Interface, ABC):
+class S3CmdClient(ClientInterface, ABC):
     def __init__(self, endpoint, access_key, secret_key, tls=False, bin_path=DEFAULT_S3CMD_BIN):
         self.endpoint = endpoint
         self.access_key = access_key
@@ -35,7 +35,7 @@ class S3CmdClient(Interface, ABC):
             cmd = '{} --no-check-certificate {}'.format(self.bin_path, args)
         else:
             cmd = '{} {}'.format(self.bin_path, args)
-        logger.debug(cmd)
+        logger.log('S3CMD', cmd)
         return cmd
 
     def _exec(self, args):
@@ -59,7 +59,7 @@ class S3CmdClient(Interface, ABC):
             if stderr_decode.startswith('WARNING:'):
                 logger.warning(stderr_decode)
             else:
-                logger.error(stderr_decode)
+                logger.error('Response({}):\n{}'.format(cmd, stderr_decode))
         return rc, stdout, stderr
 
     # TODO
@@ -82,9 +82,9 @@ class S3CmdClient(Interface, ABC):
 
         rc, output = self._exec(_args)
         if rc == 0:
-            logger.info("桶创建成功! - {}".format(bucket))
+            logger.success("桶创建成功! - {}".format(bucket))
         elif "BucketAlreadyOwnedByYou" in output:
-            logger.info("桶创已存在! - {}".format(bucket))
+            logger.success("桶创已存在! - {}".format(bucket))
         else:
             logger.error(output)
             raise Exception("桶创建失败! - {}".format(bucket))
@@ -108,7 +108,7 @@ class S3CmdClient(Interface, ABC):
             args += " --disable-multipart"
         rc, _, _ = await self._async_exec(args)
         if rc == 0:
-            logger.info("上传成功！ {} -> {}/{}".format(src_path, bucket, dst_path))
+            logger.success("上传成功！ {} -> {}/{}".format(src_path, bucket, dst_path))
         else:
             logger.error("上传失败！ {} -> {}/{}".format(src_path, bucket, dst_path))
         return rc
@@ -127,7 +127,7 @@ class S3CmdClient(Interface, ABC):
             args += " --disable-multipart"
         rc, _, _ = await self._async_exec(args)
         if rc == 0:
-            logger.info("下载成功！{}/{} -> {}".format(bucket, obj_path, local_path))
+            logger.success("下载成功！{}/{} -> {}".format(bucket, obj_path, local_path))
         else:
             logger.error("下载失败！{}/{} -> {}".format(bucket, obj_path, local_path))
         return rc
@@ -142,7 +142,7 @@ class S3CmdClient(Interface, ABC):
         args = 'del s3://{}/{}'.format(bucket, dst_path)
         rc, _, _ = await self._async_exec(args)
         if rc == 0:
-            logger.info("删除成功！{}/{}".format(bucket, dst_path))
+            logger.success("删除成功！{}/{}".format(bucket, dst_path))
         else:
             logger.error('删除失败！{}/{}'.format(bucket, dst_path))
         return rc
@@ -157,7 +157,7 @@ class S3CmdClient(Interface, ABC):
         args = 'ls s3://{}/{}'.format(bucket, obj_path)
         rc, _, _ = await self._async_exec(args)
         if rc == 0:
-            logger.info("列表对象成功！{}/{}".format(bucket, obj_path))
+            logger.success("列表对象成功！{}/{}".format(bucket, obj_path))
         else:
             logger.error("列表对象失败！{}/{}".format(bucket, obj_path))
         return rc
@@ -183,7 +183,7 @@ class S3CmdClient(Interface, ABC):
         args = 'info s3://{}/{}'.format(bucket, obj_path)
         rc, stdout, stderr = await self._async_exec(args)
         if rc == 0:
-            logger.info("获取对象信息成功！{}/{}".format(bucket, obj_path))
+            logger.success("获取对象信息成功！{}/{}".format(bucket, obj_path))
             md5s = re.findall(r'MD5 sum:\s+(.+)\n', stdout.decode())
             # md5s = re.findall(r'x-amz-meta-md5:\s+(.+)\n', stdout.decode())  # mc 上传attr
             if md5s:

@@ -9,36 +9,43 @@
 """
 import random
 
-from stress.bucket import generate_bucket_name
-from stress.put import PutObject
+from stress.base_worker import BaseWorker
+from utils.util import get_local_files
 
 
-class PutDeleteObject(PutObject):
+class PutDeleteObject(BaseWorker):
     """写删均衡测试"""
     def __init__(
             self,
             tool_type, endpoint, access_key, secret_key, tls, alias,
-            src_file_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
+            local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
             concurrent=1, disable_multipart=False,
             duration=''
     ):
         super(PutDeleteObject, self).__init__(
             tool_type, endpoint, access_key, secret_key, tls, alias,
-            src_file_path, bucket_prefix, bucket_num, depth, obj_prefix, obj_num,
+            local_path, bucket_prefix, bucket_num, depth, obj_prefix, obj_num,
             concurrent, disable_multipart,
             duration
         )
-        pass
+        # 准备源数据文件池 字典
+        self.file_list = get_local_files(local_path)
 
-    async def worker(self, idx, client):
+    async def worker(self, client, bucket, idx):
+        """
+        步骤1：删除对象
+        步骤2：上次同名对象
+        :param client:
+        :param bucket:
+        :param idx:
+        :return:
+        """
         # 准备
-        bucket_idx = idx % self.bucket_num
-        bucket = generate_bucket_name(self.bucket_prefix, bucket_idx)
-        src_obj = random.choice(self.file_list)
-        dst_path = f"{self.obj_prefix}{str(idx)}"
+        obj_path = self.obj_path_calc(idx)
+        src_file = random.choice(self.file_list)
 
-        await client.delete(bucket, dst_path)
-        await client.put(src_obj.full_path, bucket, dst_path, self.disable_multipart, tags=src_obj.tags)
+        await client.delete(bucket, obj_path)
+        await client.put(src_file.full_path, bucket, obj_path, self.disable_multipart, src_file.tags, src_file.attr)
 
 
 if __name__ == '__main__':

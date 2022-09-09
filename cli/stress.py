@@ -67,7 +67,6 @@ def put(
         local_path, bucket_prefix, bucket_num, depth,
         obj_prefix, obj_num, concurrent, disable_multipart, duration
     )
-    put_obj.prepare()
     loop = asyncio.get_event_loop()
     loop.run_until_complete(put_obj.run())
     loop.close()
