@@ -31,4 +31,5 @@ pyinstaller -F -w main.py
 # 下载依赖包到本地
 ```shell
 pip download -i https://pypi.tuna.tsinghua.edu.cn/simple -d packages -r requirements.txt
+pip install --no-index --find-links=packages -r requirements.txt
 ```
