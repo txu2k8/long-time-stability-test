@@ -7,6 +7,7 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
+import os
 import json
 from abc import ABC
 
@@ -16,7 +17,10 @@ import subprocess
 
 from client.clientinterface import ClientInterface
 
-DEFAULT_MC_BIN = r'D:\minio\mc.exe'  # mc | mc.exe
+# --- OS constants
+POSIX = os.name == "posix"
+WINDOWS = os.name == "nt"
+DEFAULT_MC_BIN = r'D:\minio\mc.exe' if WINDOWS else 'mc'  # mc | mc.exe
 
 
 class MClient(ClientInterface, ABC):
@@ -115,9 +119,8 @@ class MClient(ClientInterface, ABC):
         """
         tags += "{}disable-multipart={}".format('&' if tags else '', disable_multipart)
         attr += "{}disable-multipart={}".format(';' if attr else '', disable_multipart)
-        args = 'cp --tags "{}" --attr "{}" {} {}/{}/{}'.format(tags, attr, src_path, self.alias, bucket, dst_path)
-        if disable_multipart:
-            args += " --disable-multipart"
+        cp = 'cp --disable-multipart' if disable_multipart else 'cp'
+        args = '{} --tags "{}" --attr "{}" {} {}/{}/{}'.format(cp, tags, attr, src_path, self.alias, bucket, dst_path)
         rc, _, _ = await self._async_exec(args)
         if rc == 0:
             logger.success("上传成功！{} -> {}/{}".format(src_path, bucket, dst_path))

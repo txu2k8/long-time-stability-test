@@ -130,3 +130,6 @@ class DefaultOption(dict):
 
 if __name__ == '__main__':
     pass
+    global_cf = ConfigIni("./config.ini")
+    a = DefaultOption(global_cf.cf, "LOGGER", loglevel='INFO')
+    print(a)

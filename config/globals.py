@@ -29,13 +29,13 @@ LOG_DIR = os.path.join(BASE_DIR, "log")
 # global_cf.ini 配置项
 # 创建配置对象为全局变量
 global_cf = ConfigIni(global_cf_path)
-LOG_LEVEL = global_cf.get_str("LOGGER", "loglevel", vars=DefaultOption(global_cf.cf, "LOGGER", loglevel='INFO'))
-LOG_ROTATION = global_cf.get_str("LOGGER", "rotation", vars=DefaultOption(global_cf.cf, "LOGGER", rotation='100 MB'))
-LOG_RETENTION = global_cf.get_str("LOGGER", "retention", vars=DefaultOption(global_cf.cf, "LOGGER", retention='30 days'))
+LOG_LEVEL = global_cf.get_str("DEFAULT", "log_level", vars=DefaultOption(global_cf.cf, "DEFAULT", log_level='INFO'))
+LOG_ROTATION = global_cf.get_str("DEFAULT", "log_rotation", vars=DefaultOption(global_cf.cf, "DEFAULT", log_rotation='100 MB'))
+LOG_RETENTION = global_cf.get_str("DEFAULT", "log_retention", vars=DefaultOption(global_cf.cf, "DEFAULT", log_retention='30 days'))
 
 DB_INFO = {
-    "engine": global_cf.get_str("DATABASES", "engine", vars=DefaultOption(global_cf.cf, "DATABASES", engine='django.db.backends.sqlite3')),
-    "name": global_cf.get_str("DATABASES", "name", vars=DefaultOption(global_cf.cf, "DATABASES", name='db.sqlite3')),
+    "engine": global_cf.get_str("DEFAULT", "db_engine", vars=DefaultOption(global_cf.cf, "DEFAULT", db_engine='django.db.backends.sqlite3')),
+    "name": global_cf.get_str("DEFAULT", "db_name", vars=DefaultOption(global_cf.cf, "DEFAULT", db_name='db.sqlite3')),
 }
 
 # 设置全局 key/value

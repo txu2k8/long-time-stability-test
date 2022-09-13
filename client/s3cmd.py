@@ -7,6 +7,7 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
+import os
 import re
 from abc import ABC
 
@@ -16,7 +17,10 @@ import subprocess
 
 from client.clientinterface import ClientInterface
 
-DEFAULT_S3CMD_BIN = r'python D:\\minio\\s3cmd\\s3cmd'  # s3cmd | /usr/bin/s3cmd
+# --- OS constants
+POSIX = os.name == "posix"
+WINDOWS = os.name == "nt"
+DEFAULT_S3CMD_BIN = r'python D:\\minio\\s3cmd\\s3cmd' if WINDOWS else 's3cmd'  # s3cmd | /usr/bin/s3cmd
 
 
 class S3CmdClient(ClientInterface, ABC):
