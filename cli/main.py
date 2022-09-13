@@ -10,7 +10,7 @@
 import typer
 from typing import Optional
 
-from config import __version__, set_global_value, LOG_LEVEL
+from config import __version__
 
 
 def version_callback(value: bool):
@@ -20,13 +20,12 @@ def version_callback(value: bool):
 
 
 def public(
-        trace: bool = typer.Option(False, help="print TRACE level log"),
         version: Optional[bool] = typer.Option(
             None, "--version", callback=version_callback
         ),
 ):
     """公共参数"""
-    set_global_value('LOG_LEVEL', 'TRACE' if trace else LOG_LEVEL)
+    pass
 
 
 app = typer.Typer(name="LTS", callback=public, help="长稳测试工具集 CLI.")

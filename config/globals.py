@@ -13,7 +13,7 @@ from datetime import datetime
 from loguru import logger
 
 from utils.exceptions import EnvNotFound, VariableNotFound
-from config.cf_ini import ConfigIni
+from config.cf_ini import ConfigIni, DefaultOption
 
 
 # 时间字符串
@@ -29,13 +29,13 @@ LOG_DIR = os.path.join(BASE_DIR, "log")
 # global_cf.ini 配置项
 # 创建配置对象为全局变量
 global_cf = ConfigIni(global_cf_path)
-LOG_LEVEL = global_cf.get_str("LOGGER", "loglevel")
-LOG_ROTATION = global_cf.get_str("LOGGER", "rotation")
-LOG_RETENTION = global_cf.get_str("LOGGER", "retention")
+LOG_LEVEL = global_cf.get_str("LOGGER", "loglevel", vars=DefaultOption(global_cf.cf, "LOGGER", loglevel='INFO'))
+LOG_ROTATION = global_cf.get_str("LOGGER", "rotation", vars=DefaultOption(global_cf.cf, "LOGGER", rotation='100 MB'))
+LOG_RETENTION = global_cf.get_str("LOGGER", "retention", vars=DefaultOption(global_cf.cf, "LOGGER", retention='30 days'))
 
 DB_INFO = {
-    "engine": global_cf.get_str("DATABASES", "engine"),
-    "name": global_cf.get_str("DATABASES", "name"),
+    "engine": global_cf.get_str("DATABASES", "engine", vars=DefaultOption(global_cf.cf, "DATABASES", engine='django.db.backends.sqlite3')),
+    "name": global_cf.get_str("DATABASES", "name", vars=DefaultOption(global_cf.cf, "DATABASES", name='db.sqlite3')),
 }
 
 # 设置全局 key/value

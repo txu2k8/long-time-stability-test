@@ -51,14 +51,15 @@ class ConfigIni(object):
         self.cf.read(file_path, encoding='utf-8')
 
     # 获取字符串的配置内容
-    def get_str(self, section, option):
+    def get_str(self, section, option, vars=None):
         """
         获取配置文件的value值
         :param section: 配置文件中section的值
         :param option: 配置文件中option的值
+        :param vars:
         :return value: 返回value的值
         """
-        return self.cf.get(section, option)
+        return self.cf.get(section, option, vars=vars)
 
     # 获取int数字型内容
     def get_int(self, section, option):
@@ -108,6 +109,23 @@ class ConfigIni(object):
         with open(self.file_path, "w+") as f:
             self.cf.write(f)
         return True
+
+
+class DefaultOption(dict):
+    def __init__(self, config, section, **kv):
+        self._config = config
+        self._section = section
+        dict.__init__(self, **kv)
+
+    def items(self):
+        _items = []
+        for option in self:
+            if not self._config.has_option(self._section, option):
+                _items.append((option, self[option]))
+            else:
+                value_in_config = self._config.get(self._section, option)
+                _items.append((option, value_in_config))
+        return _items
 
 
 if __name__ == '__main__':
