@@ -7,6 +7,7 @@ import hashlib
 import subprocess
 from typing import List
 from loguru import logger
+from pypinyin import lazy_pinyin
 
 from config.models import FileInfo
 
@@ -77,6 +78,44 @@ def mkdir_if_not_exist(dir_path):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     return
+
+
+def is_contains_zh(content: str):
+    """
+    检查整个字符串是否包含中文
+    :param content: 需要检查的字符串
+    :return: bool
+    """
+    if content is None:
+        content = ""
+    if not isinstance(content, str):
+        content = str(content)
+    for ch in content:
+        if u'\u4e00' <= ch <= u'\u9fff':
+            return True
+    return False
+
+
+def to_safe_name(content: str):
+    """
+    中文转换为拼音，然后替换字符串中非字母、数字、下划线的字符为下划线，转换小写
+    :param content: 原始字符串
+    :return: 小写字母、数字、下划线组成的字符串
+    """
+    return str(re.sub("[^a-zA-Z0-9_]+", "", '_'.join(lazy_pinyin(content)))).lower()
+
+
+def to_class_name(content: str):
+    """
+    中文转拼音，删除字符串中非字母、数字、下划线的字符，单词首字母大小，如："class-mall goods" --> ClassMallGoods
+    :param content: 原始字符串
+    :return: 字母、数字组合的字符串，驼峰格式
+    """
+    if is_contains_zh(content):
+        content = '_'.join(lazy_pinyin(content)).title()
+    if ' ' in content:
+        content = content.title().replace(' ', '')
+    return str(re.sub("[^a-zA-Z0-9]+", "", content))
 
 
 def zfill(number, width=9):

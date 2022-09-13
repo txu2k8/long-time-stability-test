@@ -23,24 +23,29 @@ import sys
 import atexit
 from loguru import logger
 
-from config import TIME_STR, LOG_DIR, LOG_ROTATION, LOG_RETENTION, get_global_value
+from config import TIME_STR, LOG_DIR, LOG_LEVEL, LOG_ROTATION, LOG_RETENTION
 
-DEFAULT_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | " \
+DEFAULT_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <7}</level> | " \
                  "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> " \
                  "- <level>{message}</level>"
 SIMPLE_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <7}</level> | <level>{message}</level>"
 OBJECT_FORMAT = "{message}"
+TRACE_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <7}</level> | " \
+                 "<cyan>P{process}</cyan>:<cyan>T{thread}</cyan>:<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> " \
+                 "- <level>{message}</level>"
 
 
-def init_logger(prefix='test'):
+def init_logger(prefix='test', case_id=0, trace=False):
     """
     初始化logger日志配置
     :param prefix:
+    :param case_id:测试用例ID，作为文件名的一部分
+    :param trace: 是否打印trace信息
     :return:
     """
     # 获取配置
-    loglevel = get_global_value('LOG_LEVEL')
-    spec_format = DEFAULT_FORMAT if loglevel == 'TRACE' else SIMPLE_FORMAT
+    loglevel = 'TRACE' if trace else LOG_LEVEL
+    spec_format = TRACE_FORMAT if loglevel == 'TRACE' else SIMPLE_FORMAT
 
     # 删除默认
     logger.remove()
@@ -48,16 +53,23 @@ def init_logger(prefix='test'):
     # 新增级别
     logger.level('MC', no=21, color='<blue><bold>')  # INFO < MC < ERROR
     logger.level('S3CMD', no=22, color='<blue><bold>')  # INFO < S3CMD < ERROR
-    logger.level('OBJ', no=51)  # CRITICAL < OBJ，打印操作的对象列表
+    logger.level('OBJ', no=31)  # WARNING < OBJ，打印操作的对象列表
+    logger.level('DESC', no=52)  # CRITICAL < DESC，打印描述信息到所有日志文件
 
     # 初始化控制台配置
     logger.add(sys.stderr, level=loglevel, format=spec_format)
 
+    # 日志文件名处理
+    logfile_prefix = '{}_{}'.format(TIME_STR, prefix)
+    if case_id > 1:
+        logfile_prefix += '_tc{}'.format(case_id)
+
     # 初始化日志配置 -- all日志文件
     logger.add(
-        os.path.join(LOG_DIR, '{}-{}-all.log'.format(TIME_STR, prefix)),
+        os.path.join(LOG_DIR, '{}_all.log'.format(logfile_prefix)),
+        # os.path.join(LOG_DIR, '{time}'+'_{prefix}_all.log'.format(prefix=prefix)),
         rotation=LOG_ROTATION,  # '100 MB',
-        retention=LOG_RETENTION,  # '7 days',
+        retention=LOG_RETENTION,  # '30 days',
         enqueue=True,
         encoding="utf-8",
         level=loglevel,
@@ -69,9 +81,9 @@ def init_logger(prefix='test'):
     # 初始化日志配置 -- 记录对象列表
     if prefix in ['put', 'delete']:
         logger.add(
-            os.path.join(LOG_DIR, '{}-{}-obj.log'.format(TIME_STR, prefix)),
+            os.path.join(LOG_DIR, '{}_obj.log'.format(logfile_prefix)),
             rotation=LOG_ROTATION,  # '100 MB',
-            retention=LOG_RETENTION,  # '7 days',
+            retention=LOG_RETENTION,  # '30 days',
             enqueue=True,
             encoding="utf-8",
             level='OBJ',
@@ -80,12 +92,13 @@ def init_logger(prefix='test'):
 
     # 初始化日志配置 -- error日志文件
     logger.add(
-        os.path.join(LOG_DIR, '{}-{}-err.log'.format(TIME_STR, prefix)),
+        os.path.join(LOG_DIR, '{}_err.log'.format(logfile_prefix)),
         rotation=LOG_ROTATION,  # '100 MB',
-        retention=LOG_RETENTION,  # '7 days',
+        retention=LOG_RETENTION,  # '30 days',
         enqueue=True,
         encoding="utf-8",
-        level='ERROR'
+        level='ERROR',
+        format=TRACE_FORMAT
     )
 
     atexit.register(logger.remove)

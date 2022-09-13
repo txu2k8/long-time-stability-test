@@ -90,9 +90,10 @@ class BaseWorker(object):
 
     @staticmethod
     def obj_prefix_calc(obj_prefix, depth):
-        date_prefix = datetime.date.today().strftime("%Y-%m-%d") + '/'  # 按日期写入不同文件夹
+        # date_prefix = datetime.date.today().strftime("%Y-%m-%d") + '/'  # 按日期写入不同文件夹
+        date_prefix = ''
         nested_prefix = ""
-        for d in range(2, depth + 1):  # depth=2为第一级文件夹
+        for d in range(2, depth + 1):  # depth=2开始创建子文件夹，depth=1为日期文件夹
             nested_prefix += f'nested{d - 1}/'
         prefix = date_prefix + nested_prefix + obj_prefix
         return prefix
@@ -148,7 +149,7 @@ class BaseWorker(object):
 
     async def producer(self, queue):
         """
-        produce queue队列，每秒生产concurrent个
+        produce queue队列，每秒生产concurrent个，实际生产总数=obj_num * bucket_num（指定时间除外）
         :param queue:
         :return:
         """
