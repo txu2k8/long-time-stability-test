@@ -21,7 +21,7 @@ def version_callback(value: bool):
 
 def public(
         version: Optional[bool] = typer.Option(
-            None, "--version", callback=version_callback
+            None, "--version", callback=version_callback, help='Show the tool version'
         ),
 ):
     """公共参数"""
