@@ -20,7 +20,7 @@ from config.cf_ini import ConfigIni, DefaultOption
 TIME_STR = datetime.now().strftime("%Y%m%d_%H%M%S")  # 时间字符串 -%f
 
 # 项目BASE目录
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent if __file__.endswith('py') else os.getcwd()
 global_cf_path = os.path.join(BASE_DIR, "config", "global_cf.ini")
 
 # 日志、报告目录路径

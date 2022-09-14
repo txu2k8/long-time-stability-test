@@ -64,6 +64,7 @@ def init_logger(prefix='test', case_id=0, trace=False):
     if case_id > 1:
         logfile_prefix += '_tc{}'.format(case_id)
 
+    logger.info(LOG_DIR)
     # 初始化日志配置 -- all日志文件
     logger.add(
         os.path.join(LOG_DIR, '{}_all.log'.format(logfile_prefix)),

@@ -18,6 +18,14 @@ class GenFileType(str, Enum):
     DATA = '.data'
 
 
+# 多段设置类型 - 枚举
+class MultipartType(str, Enum):
+    """多段设置 类型枚举"""
+    enable = 'enable'  # 启用
+    disable = 'disable'  # 禁用
+    random = 'random'  # 随机
+
+
 # 文件信息
 class FileInfo(BaseModel):
     """文件信息 - 数据模型"""

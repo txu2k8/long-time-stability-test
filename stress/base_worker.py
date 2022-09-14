@@ -53,7 +53,7 @@ class BaseWorker(object):
             self,
             client_type, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
-            concurrent=1, disable_multipart=False,
+            concurrent=1, multipart=False,
             duration=''
     ):
         self.client_type = client_type
@@ -69,14 +69,24 @@ class BaseWorker(object):
         self.obj_prefix = obj_prefix
         self.obj_num = obj_num
         self.concurrent = concurrent
-        self.disable_multipart = disable_multipart
+        self.multipart = multipart
         self.duration = duration
-        # 对象目录处理
-
         # 初始化客户端
         self.clients_info = init_clients(
             self.client_type, self.endpoint, self.access_key, self.secret_key, self.tls, self.alias)
         self.client_list = list(self.clients_info.values())
+
+    def disable_multipart_calc(self):
+        """
+        计算 disable_multipart
+        :return:
+        """
+        if self.multipart == 'enable':
+            return False
+        elif self.multipart == 'disable':
+            return True
+        else:
+            return random.choice([True, False])
 
     @staticmethod
     def bucket_name_calc(bucket_prefix, idx):

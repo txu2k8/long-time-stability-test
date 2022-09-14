@@ -20,14 +20,12 @@ class PutObject(BaseWorker):
             self,
             client_type, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
-            concurrent=1, disable_multipart=False,
-            duration=''
+            concurrent=1, multipart=False, duration=''
     ):
         super(PutObject, self).__init__(
             client_type, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num, depth, obj_prefix, obj_num,
-            concurrent, disable_multipart,
-            duration
+            concurrent, multipart, duration
         )
         # 准备源数据文件池 字典
         self.file_list = get_local_files(local_path)
@@ -50,7 +48,8 @@ class PutObject(BaseWorker):
         """
         obj_path = self.obj_path_calc(idx)
         src_file = random.choice(self.file_list)
-        await client.put(src_file.full_path, bucket, obj_path, self.disable_multipart, src_file.tags, src_file.attr)
+        disable_multipart = self.disable_multipart_calc()
+        await client.put(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags, src_file.attr)
 
 
 if __name__ == '__main__':
