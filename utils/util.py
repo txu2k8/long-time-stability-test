@@ -206,6 +206,19 @@ def size_convert_byte2str(value):
         value = value / size
 
 
+def seconds_convert_str(seconds):
+    """
+    把秒数转换为易读的时间长，如：12d, 23:43:42
+    :param seconds:
+    :return:
+    """
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    d, h = divmod(h, 24)
+    return "%dd, %02d:%02d:%02d" % (d, h, m, s)
+
+
 if __name__ == "__main__":
     pass
-    print(size_convert_str2byte('1G'))
+    # print(size_convert_str2byte('1G'))
+    print(seconds_convert_str(1122222))

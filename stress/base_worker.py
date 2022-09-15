@@ -7,6 +7,7 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
+import re
 import random
 import datetime
 import asyncio
@@ -54,7 +55,7 @@ class BaseWorker(object):
             client_type, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
             concurrent=1, multipart=False,
-            duration=''
+            duration=0, cover=False
     ):
         self.client_type = client_type
         self.endpoint = endpoint
@@ -71,6 +72,7 @@ class BaseWorker(object):
         self.concurrent = concurrent
         self.multipart = multipart
         self.duration = duration
+        self.cover = cover
         # 初始化客户端
         self.clients_info = init_clients(
             self.client_type, self.endpoint, self.access_key, self.secret_key, self.tls, self.alias)
@@ -157,14 +159,15 @@ class BaseWorker(object):
         logger.info('worker示例，待实例自定义')
         await asyncio.sleep(1)
 
-    async def producer(self, queue):
+    async def producer1(self, queue):
         """
         produce queue队列，每秒生产concurrent个，实际生产总数=obj_num * bucket_num（指定时间除外）
+        时间优先，指定时间则累加idx持续操作
         :param queue:
         :return:
         """
         # 生产待处理的queue列表
-        if self.duration:
+        if self.duration > 0:
             # 持续时间
             logger.info("Run test duration {}s, concurrent={}".format(self.duration, self.concurrent))
             idx = 0
@@ -197,6 +200,43 @@ class BaseWorker(object):
                         await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
                     total += 1
 
+        return True
+
+    async def producer2(self, queue):
+        """
+        produce queue队列，每秒生产concurrent个，实际生产总数=obj_num * bucket_num（指定时间除外）
+        数量优先，指定时间则覆盖idx循环操作
+        :param queue:
+        :return:
+        """
+        # 生产待处理的queue列表
+        logger.info("PUT obj={}, bucket={}, concurrent={}, ".format(self.obj_num, self.bucket_num, self.concurrent))
+        if self.duration <= 0:
+            return await self.producer1(queue)
+
+        logger.info("Run test duration {}s".format(self.duration))
+        start = datetime.datetime.now()
+        end = start
+        produce_loop = 1
+        while self.duration > (end - start).total_seconds():
+            logger.info("Loop: {}".format(produce_loop))
+            total = 0
+            for idx in range(self.obj_num):
+                if self.duration <= (end - start).total_seconds():
+                    break
+                logger.trace("Loop-{} producing {}/{}".format(produce_loop, idx, self.obj_num))
+                client = random.choice(self.client_list)  # 随机选择客户端
+                for bucket_idx in range(self.bucket_num):  # 依次处理每个桶中数据：写、读、删、列表、删等
+                    bucket = self.bucket_name_calc(self.bucket_prefix, bucket_idx)
+                    await queue.put((client, bucket, idx))
+                    if total % self.concurrent == 0:
+                        await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
+                    total += 1
+                end = datetime.datetime.now()
+            produce_loop += 1
+
+        return
+
     async def consumer(self, queue):
         """
         consume queue队列，指定队列中全部被消费
@@ -218,7 +258,10 @@ class BaseWorker(object):
         queue = asyncio.Queue()
         # 创建100倍 concurrent 数量的consumer
         consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.concurrent * 100)]
-        await self.producer(queue)
+        if self.cover:
+            await self.producer2(queue)  # 数量优先，指定时间则覆盖idx循环操作
+        else:
+            await self.producer1(queue)  # 时间优先，指定时间则累加idx持续操作
         await queue.join()
         for c in consumers:
             c.cancel()

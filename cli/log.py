@@ -53,11 +53,11 @@ def init_logger(prefix='test', case_id=0, trace=False):
     # 新增级别
     logger.level('MC', no=21, color='<blue><bold>')  # INFO < MC < ERROR
     logger.level('S3CMD', no=22, color='<blue><bold>')  # INFO < S3CMD < ERROR
-    logger.level('OBJ', no=31)  # WARNING < OBJ，打印操作的对象列表
+    logger.level('OBJ', no=51)  # CRITICAL < OBJ，打印操作的对象列表
     logger.level('DESC', no=52)  # CRITICAL < DESC，打印描述信息到所有日志文件
 
     # 初始化控制台配置
-    logger.add(sys.stderr, level=loglevel, format=spec_format)
+    logger.add(sys.stderr, level=loglevel, format=spec_format, filter=lambda x: "OBJ" not in str(x['level']).upper())
 
     # 日志文件名处理
     logfile_prefix = '{}_{}'.format(TIME_STR, prefix)
@@ -75,6 +75,7 @@ def init_logger(prefix='test', case_id=0, trace=False):
         encoding="utf-8",
         level=loglevel,
         format=spec_format,
+        filter=lambda x: "OBJ" not in str(x['level']).upper(),
         backtrace=True,
         diagnose=True
     )
@@ -99,7 +100,8 @@ def init_logger(prefix='test', case_id=0, trace=False):
         enqueue=True,
         encoding="utf-8",
         level='ERROR',
-        format=TRACE_FORMAT
+        format=TRACE_FORMAT,
+        filter=lambda x: "OBJ" not in str(x['level']).upper()
     )
 
     atexit.register(logger.remove)
