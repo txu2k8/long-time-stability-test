@@ -19,12 +19,12 @@ class PutDeleteObject(BaseWorker):
             self,
             tool_type, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
-            concurrent=1, multipart=False, duration=0, cover=False
+            concurrent=1, multipart=False, duration=0, cover=False, idx_start=0, idx_width=1
     ):
         super(PutDeleteObject, self).__init__(
             tool_type, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num, depth, obj_prefix, obj_num,
-            concurrent, multipart, duration, cover
+            concurrent, multipart, duration, cover, idx_start, idx_width
         )
         # 准备源数据文件池 字典
         self.file_list = get_local_files(local_path)

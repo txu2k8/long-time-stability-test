@@ -55,7 +55,7 @@ class BaseWorker(object):
             client_type, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
             concurrent=1, multipart=False,
-            duration=0, cover=False
+            duration=0, cover=False, idx_start=0, idx_width=1,
     ):
         self.client_type = client_type
         self.endpoint = endpoint
@@ -73,6 +73,8 @@ class BaseWorker(object):
         self.multipart = multipart
         self.duration = duration
         self.cover = cover
+        self.idx_start = idx_start
+        self.idx_width = idx_width
         # 初始化客户端
         self.clients_info = init_clients(
             self.client_type, self.endpoint, self.access_key, self.secret_key, self.tls, self.alias)
@@ -117,7 +119,7 @@ class BaseWorker(object):
         :return:
         """
         obj_prefix = self.obj_prefix_calc(self.obj_prefix, self.depth)
-        obj_path = obj_prefix + zfill(idx)
+        obj_path = obj_prefix + zfill(idx, width=self.idx_width)
         return obj_path
 
     def set_core_loglevel(self, loglevel="debug"):
@@ -170,7 +172,7 @@ class BaseWorker(object):
         if self.duration > 0:
             # 持续时间
             logger.info("Run test duration {}s, concurrent={}".format(self.duration, self.concurrent))
-            idx = 0
+            idx = self.idx_start
             total = 0
             start = datetime.datetime.now()
             end = datetime.datetime.now()
@@ -188,9 +190,9 @@ class BaseWorker(object):
             logger.info("duration {}s completed!".format(self.duration))
         else:
             # 指定处理数量
-            logger.info("PUT obj_num={}, concurrent={}".format(self.obj_num, self.concurrent))
+            logger.info("PUT obj={}, bucket={}, concurrent={}, ".format(self.obj_num, self.bucket_num, self.concurrent))
             total = 0
-            for x in range(self.obj_num):
+            for x in range(self.idx_start, self.obj_num):
                 logger.trace("producing {}/{}".format(x, self.obj_num))
                 client = random.choice(self.client_list)  # 随机选择客户端
                 for bucket_idx in range(self.bucket_num):  # 依次处理每个桶中数据：写、读、删、列表、删等
@@ -221,7 +223,7 @@ class BaseWorker(object):
         while self.duration > (end - start).total_seconds():
             logger.info("Loop: {}".format(produce_loop))
             total = 0
-            for idx in range(self.obj_num):
+            for idx in range(self.idx_start, self.obj_num):
                 if self.duration <= (end - start).total_seconds():
                     break
                 logger.trace("Loop-{} producing {}/{}".format(produce_loop, idx, self.obj_num))
@@ -257,7 +259,7 @@ class BaseWorker(object):
 
         queue = asyncio.Queue()
         # 创建100倍 concurrent 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.concurrent * 100)]
+        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.concurrent * 2000)]
         if self.cover:
             await self.producer2(queue)  # 数量优先，指定时间则覆盖idx循环操作
         else:
@@ -271,7 +273,7 @@ if __name__ == '__main__':
     bw = BaseWorker(
         'mc', '127.0.0.1:9000', 'minioadmin', 'minioadmin', False, 'play',
         'D:\\minio\\upload_data', 'bucket', 1, 2, '', 10,
-        3, False, '30'
+        3, False, 30
     )
     loop = asyncio.get_event_loop()
     loop.run_until_complete(bw.run())

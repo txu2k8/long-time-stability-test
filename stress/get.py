@@ -21,12 +21,12 @@ class GetObject(BaseWorker):
             self,
             tool_type, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
-            concurrent=1, multipart=False, duration=0, cover=False
+            concurrent=1, multipart=False, duration=0, cover=False, idx_start=0, idx_width=1
     ):
         super(GetObject, self).__init__(
             tool_type, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num, depth, obj_prefix, obj_num,
-            concurrent, multipart, duration, cover
+            concurrent, multipart, duration, cover, idx_start, idx_width
         )
         pass
 
@@ -40,7 +40,7 @@ class GetObject(BaseWorker):
         """
         # 准备
         obj_path = self.obj_path_calc(idx)
-        local_file_path = os.path.join(self.local_path, obj_path.replace('/', '_'))
+        local_file_path = os.path.join(self.local_path, '{}_{}'.format(bucket, obj_path.replace('/', '_')))
         disable_multipart = self.disable_multipart_calc()
         rc, expect_md5 = await client.get_obj_md5(bucket, obj_path)
         await client.get(bucket, obj_path, local_file_path, disable_multipart)
