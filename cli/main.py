@@ -28,7 +28,7 @@ def public(
     pass
 
 
-app = typer.Typer(name="LTS", callback=public, help="长稳测试工具集 CLI.")
+app = typer.Typer(name="LTS", callback=public, add_completion=False, help="长稳测试工具集 CLI.")
 
 
 if __name__ == '__main__':
