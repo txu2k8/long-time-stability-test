@@ -9,7 +9,7 @@
 """
 from cli import stress
 from cli import check
-from cli import generate
+from cli import tools
 
 
 __all__ = [

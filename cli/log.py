@@ -81,16 +81,15 @@ def init_logger(prefix='test', case_id=0, trace=False):
     )
 
     # 初始化日志配置 -- 记录对象列表
-    if prefix in ['put', 'delete']:
-        logger.add(
-            os.path.join(LOG_DIR, '{}_obj.log'.format(logfile_prefix)),
-            rotation=LOG_ROTATION,  # '100 MB',
-            retention=LOG_RETENTION,  # '30 days',
-            enqueue=True,
-            encoding="utf-8",
-            level='OBJ',
-            format=OBJECT_FORMAT
-        )
+    logger.add(
+        os.path.join(LOG_DIR, '{}_obj.log'.format(logfile_prefix)),
+        rotation=LOG_ROTATION,  # '100 MB',
+        retention=LOG_RETENTION,  # '30 days',
+        enqueue=True,
+        encoding="utf-8",
+        level='OBJ',
+        format=OBJECT_FORMAT
+    )
 
     # 初始化日志配置 -- error日志文件
     logger.add(
