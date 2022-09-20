@@ -9,6 +9,7 @@
 """
 import os
 import json
+import re
 from abc import ABC
 
 from loguru import logger
@@ -250,3 +251,32 @@ class MClient(ClientInterface, ABC):
     async def get_obj_md5(self, bucket, obj_path):
         rc, md5 = await self.get_obj_md5_by_tag(bucket, obj_path)
         return rc, md5
+
+    def delete_bucket_objs(self, bucket):
+        """
+        uc rm命令删除桶中所有对象
+        :param bucket:
+        :return:
+        """
+        args = 'rm --recursive --force --dangerous {}/{}'.format(self.alias, bucket)
+        rc, output = self._exec(args)
+        if rc == 0:
+            logger.success("删除成功！{}/{}".format(self.alias, bucket))
+        return rc, output
+
+    def get_all_buckets(self):
+        """
+        获取所有桶列表
+        :return:
+        """
+        buckets = []
+        args = 'ls {}'.format(self.alias)
+        rc, output = self._exec(args)
+        if rc == 0:
+            logger.success("桶列表成功！{}/*".format(self.alias))
+            for b in output.split("\n"):
+                bucket_names = re.findall(r"0B\s+(.*)/", b)
+                bucket_name = bucket_names[0] if bucket_names else ""
+                if bucket_name:
+                    buckets.append(bucket_name)
+        return buckets

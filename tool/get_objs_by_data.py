@@ -2,7 +2,7 @@
 # -*- coding:utf-8 _*-
 """
 @author:TXU
-@file:put
+@file:get_objs_by_data
 @time:2022/09/19
 @email:tao.xu2008@outlook.com
 @description: 从/data/minio*挂载点的目录名称获取对象 桶/对象名
