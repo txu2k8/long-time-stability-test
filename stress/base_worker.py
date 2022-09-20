@@ -103,22 +103,24 @@ class BaseWorker(object):
         return '{}{}'.format(bucket_prefix, idx)
 
     @staticmethod
-    def obj_prefix_calc(obj_prefix, depth):
-        # date_prefix = datetime.date.today().strftime("%Y-%m-%d") + '/'  # 按日期写入不同文件夹
-        date_prefix = ''
+    def obj_prefix_calc(obj_prefix, depth, date_prefix=''):
+        if date_prefix == "today":
+            date_prefix = datetime.date.today().strftime("%Y-%m-%d") + '/'  # 按日期写入不同文件夹
+
         nested_prefix = ""
         for d in range(2, depth + 1):  # depth=2开始创建子文件夹，depth=1为日期文件夹
             nested_prefix += f'nested{d - 1}/'
         prefix = date_prefix + nested_prefix + obj_prefix
         return prefix
 
-    def obj_path_calc(self, idx):
+    def obj_path_calc(self, idx, date_prefix=''):
         """
         依据idx序号计算对象 path，实际为：<bucket_name>/{obj_path}
         :param idx:
+        :param date_prefix:按日期写不同文件夹
         :return:
         """
-        obj_prefix = self.obj_prefix_calc(self.obj_prefix, self.depth)
+        obj_prefix = self.obj_prefix_calc(self.obj_prefix, self.depth, date_prefix)
         obj_path = obj_prefix + zfill(idx, width=self.idx_width)
         return obj_path
 

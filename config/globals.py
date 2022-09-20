@@ -33,10 +33,7 @@ LOG_LEVEL = global_cf.get_str("DEFAULT", "log_level", vars=DefaultOption(global_
 LOG_ROTATION = global_cf.get_str("DEFAULT", "log_rotation", vars=DefaultOption(global_cf.cf, "DEFAULT", log_rotation='100 MB'))
 LOG_RETENTION = global_cf.get_str("DEFAULT", "log_retention", vars=DefaultOption(global_cf.cf, "DEFAULT", log_retention='30 days'))
 
-DB_INFO = {
-    "engine": global_cf.get_str("DEFAULT", "db_engine", vars=DefaultOption(global_cf.cf, "DEFAULT", db_engine='django.db.backends.sqlite3')),
-    "name": global_cf.get_str("DEFAULT", "db_name", vars=DefaultOption(global_cf.cf, "DEFAULT", db_name='db.sqlite3')),
-}
+DB_SQLITE3 = os.path.join(BASE_DIR, "db.sqlite3")
 
 # 设置全局 key/value
 _global_dict = {}

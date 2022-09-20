@@ -13,5 +13,5 @@ from cli import tools
 
 
 __all__ = [
-    stress, check, generate
+    stress, check, tools
 ]
