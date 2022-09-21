@@ -10,8 +10,9 @@
 from cli import stress
 from cli import check
 from cli import tools
+from cli import video_monitor
 
 
 __all__ = [
-    stress, check, tools
+    stress, check, tools, video_monitor
 ]

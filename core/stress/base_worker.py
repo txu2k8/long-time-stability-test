@@ -52,12 +52,12 @@ class BaseWorker(object):
 
     def __init__(
             self,
-            client_type, endpoint, access_key, secret_key, tls, alias,
+            client_types, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
             concurrent=1, multipart=False,
             duration=0, cover=False, idx_start=0, idx_width=1,
     ):
-        self.client_type = client_type
+        self.client_types = client_types
         self.endpoint = endpoint
         self.access_key = access_key
         self.secret_key = secret_key
@@ -77,7 +77,7 @@ class BaseWorker(object):
         self.idx_width = idx_width
         # 初始化客户端
         self.clients_info = init_clients(
-            self.client_type, self.endpoint, self.access_key, self.secret_key, self.tls, self.alias)
+            self.client_types, self.endpoint, self.access_key, self.secret_key, self.tls, self.alias)
         self.client_list = list(self.clients_info.values())
 
     def disable_multipart_calc(self):
@@ -147,9 +147,20 @@ class BaseWorker(object):
             bucket = self.bucket_name_calc(bucket_prefix, idx)
             client.mb(bucket)
 
-    def prepare(self):
+    def init(self):
+        """
+        批量创建特定桶
+        :return:
+        """
         # 开启debug日志
         # self.set_core_loglevel()
+        pass
+
+    def prepare(self):
+        """
+        批量创建特定对象
+        :return:
+        """
         pass
 
     async def worker(self, client, bucket, idx):
@@ -257,6 +268,7 @@ class BaseWorker(object):
         执行 生产->消费 queue
         :return:
         """
+        self.init()
         self.prepare()
 
         queue = asyncio.Queue()
