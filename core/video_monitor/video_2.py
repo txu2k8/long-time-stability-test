@@ -13,6 +13,7 @@
 """
 import random
 import asyncio
+import arrow
 from loguru import logger
 
 from utils.util import get_local_files
@@ -23,11 +24,10 @@ from core.stress.base_worker import BaseWorker
 
 class VideoMonitor1(BaseWorker):
     """视频监控场景测试 - 1"""
-
     def __init__(
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
-            local_path, bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, obj_num_per_day=1,
+            local_path, bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, obj_per_day=1,
             concurrent=1, multipart=False, idx_start=0, idx_width=1
     ):
         super(VideoMonitor1, self).__init__(
@@ -35,14 +35,14 @@ class VideoMonitor1(BaseWorker):
             local_path, bucket_prefix, bucket_num, 1, obj_prefix, obj_num,
             concurrent, multipart, 0, False, idx_start, idx_width
         )
-        self.obj_num_per_day = obj_num_per_day
+        self.obj_per_day = obj_per_day
         # 准备源数据文件池 字典
         self.file_list = get_local_files(local_path)
         # 数据库
         self.db_table_name = "video_monitor"
         self.sqlite3_opt = Sqlite3Operation(db_path=DB_SQLITE3, show=False)
         self.start_date = "2022-09-20"
-        self.put_idx = 0
+        self.current_date = "2022-09-20"
 
     async def worker_put(self, client, bucket, idx):
         """
@@ -52,18 +52,17 @@ class VideoMonitor1(BaseWorker):
         :param idx:
         :return:
         """
-        date_step = idx // self.obj_num_per_day  # 每日写N个对象，放在一个日期命名的文件夹
-        current_date = self.date_str_calc(self.start_date, date_step)
-        date_prefix = current_date + '/'
+        # date_prefix = ""
+        date_step = idx // self.obj_per_day  # 每日写N个对象，放在一个文件夹
+        self.current_date = self.date_str_calc(self.start_date, date_step)
+        date_prefix = self.current_date + '/'
 
         obj_path = self.obj_path_calc(idx, date_prefix)
         src_file = random.choice(self.file_list)
         disable_multipart = self.disable_multipart_calc()
-
         insert_sql = '''INSERT INTO video_monitor ( idx, date, bucket, obj_path ) values (?, ?, ?, ?)'''
-        data = [(str(idx), current_date, bucket, obj_path)]
+        data = [(str(idx), self.current_date, bucket, obj_path)]
         self.sqlite3_opt.insert_update_delete(insert_sql, data)
-        self.put_idx = idx
 
         await client.put(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags, src_file.attr)
 
@@ -105,37 +104,22 @@ class VideoMonitor1(BaseWorker):
         """
         logger.info("Produce Delete bucket={}, concurrent={}, ".format(self.bucket_num, self.concurrent))
         client = self.client_list[0]
-        start_date = self.start_date
-        rows = []
+        tmp_date = self.date_str_calc(self.current_date, 3)
+        sql_cmd = '''SELECT * FROM {} where date < {}'''.format(self.db_table_name, tmp_date)
+        rows = self.sqlite3_opt.fetchall(sql_cmd)
+        print(type(rows))
         idx = 0
         while True:
             for row in rows:  # 依次处理每个桶中数据：写、读、删、列表、删等
-                #  (19, '18', '2022-09-21', 'bucket0', '2022-09-21/data00000000018')
-                bucket = row[3]
-                obj_path = row[4]
+                bucket = row["bucket"]
+                obj_path = row["obj_path"]
                 await queue.put((client, bucket, obj_path))
                 if idx % self.concurrent == 0:
                     await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
                 idx += 1
-            logger.debug("当前 put_idx={}".format(self.put_idx))
-            if self.put_idx > self.obj_num:  # 预置数据完成
-                end_date = self.date_str_calc(start_date, 1)  # 删除开始日期1天后的数据
-                sql_cmd = '''SELECT * FROM {} where  date >= \"{}\" and date < \"{}\"'''.format(
-                    self.db_table_name, start_date, end_date)
-                rows = self.sqlite3_opt.fetchall(sql_cmd)
-                start_date = end_date
-                await asyncio.sleep(0)
-            else:
-                logger.debug("DELETE：数据预置中，暂不删除...")
-                await asyncio.sleep(1)
-
-    async def producer(self, queue_put, queue_delete):
-        # await self.producer_put(queue_put)
-        # await self.producer_delete(queue_delete)
-
-        asyncio.ensure_future(self.producer_put(queue_put))
-        asyncio.ensure_future(self.producer_delete(queue_delete))
-        await asyncio.sleep(0)
+            tmp_date = self.date_str_calc(self.current_date, 3)
+            sql_cmd = '''SELECT * FROM {} where date < {}'''.format(self.db_table_name, tmp_date)
+            rows = self.sqlite3_opt.fetchall(sql_cmd)
 
     async def consumer_put(self, queue):
         """
@@ -158,6 +142,24 @@ class VideoMonitor1(BaseWorker):
             item = await queue.get()
             await self.worker_delete(*item)
             queue.task_done()
+
+    async def run_put(self):
+        queue = asyncio.Queue()
+        # 创建100倍 concurrent 数量的consumer
+        consumers = [asyncio.ensure_future(self.consumer_put(queue)) for _ in range(self.concurrent * 2000)]
+        await self.producer_put(queue)
+        await queue.join()
+        for c in consumers:
+            c.cancel()
+
+    async def run_delete(self):
+        queue = asyncio.Queue()
+        # 创建100倍 concurrent 数量的consumer
+        consumers = [asyncio.ensure_future(self.consumer_delete(queue)) for _ in range(self.concurrent * 2000)]
+        await self.producer_delete(queue)
+        await queue.join()
+        for c in consumers:
+            c.cancel()
 
     def stage_init(self):
         """
@@ -194,28 +196,43 @@ class VideoMonitor1(BaseWorker):
         :return:
         """
         logger.log("STAGE", "prepare->预置对象，PUT obj={}, bucket={}, total={}, concurrent={}".format(
-            self.obj_num, self.bucket_num, self.obj_num * self.bucket_num, self.concurrent
+            self.obj_num, self.bucket_num, self.obj_num*self.bucket_num, self.concurrent
         ))
 
-    async def stage_main(self):
+    def tmp1(self, loop):
+        # loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.run_put())
+        # loop.close()
+
+    def tmp2(self, loop):
+        # loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.run_delete())
+        # loop.close()
+
+    def stage_main(self):
         logger.log("STAGE", "main->写删均衡测试，put_obj_idx_start={}, bucket={}, concurrent={}".format(
             self.obj_num, self.bucket_num, self.concurrent
         ))
+        # tasks = [
+        #     asyncio.ensure_future(self.run_put()),
+        #     # asyncio.ensure_future(self.run_delete()),
+        # ]
+        # loop = asyncio.get_event_loop()
+        # loop.run_until_complete(asyncio.gather(*tasks))
+        # loop.close()
 
-        queue_put = asyncio.Queue()
-        queue_delete = asyncio.Queue()
-        # 创建100倍 concurrent 数量的consumer
-        consumers_put = [asyncio.ensure_future(self.consumer_put(queue_put)) for _ in range(self.concurrent * 2000)]
-        consumers_del = [asyncio.ensure_future(self.consumer_delete(queue_delete)) for _ in
-                         range(self.concurrent * 2000)]
+        import threading as mp
+        # p1 = mp.Process(target=asyncio.ensure_future, args=(self.run_put(),))
+        # p2 = mp.Process(target=asyncio.ensure_future, args=(self.run_delete(),))
 
-        await self.producer(queue_put, queue_delete)
-        await queue_put.join()
-        await queue_delete.join()
-        for c in consumers_put:
-            c.cancel()
-        for c in consumers_del:
-            c.cancel()
+        loop = asyncio.get_event_loop()
+        p1 = mp.Thread(target=self.tmp1, args=(loop, ))
+        p2 = mp.Thread(target=self.tmp2, args=(loop, ))
+        p1.start()
+        p1.join()
+        p2.start()
+        p2.join()
+        loop.close()
 
     def run(self):
         """
@@ -224,10 +241,7 @@ class VideoMonitor1(BaseWorker):
         """
         self.stage_init()
         self.stage_prepare()
-
-        loop = asyncio.get_event_loop()
-        asyncio.ensure_future(self.stage_main())
-        loop.run_forever()
+        self.stage_main()
 
 
 if __name__ == '__main__':

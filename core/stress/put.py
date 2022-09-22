@@ -30,7 +30,7 @@ class PutObject(BaseWorker):
         # 准备源数据文件池 字典
         self.file_list = get_local_files(local_path)
 
-    def init(self):
+    def stage_init(self):
         # 开启debug日志
         # self.set_core_loglevel()
 

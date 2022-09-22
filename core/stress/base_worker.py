@@ -7,13 +7,13 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
-import re
 import random
 import datetime
 import asyncio
 from collections import defaultdict
 from typing import List, Text
 from loguru import logger
+import arrow
 
 from utils.util import zfill
 from config.models import ClientType
@@ -103,6 +103,11 @@ class BaseWorker(object):
         return '{}{}'.format(bucket_prefix, idx)
 
     @staticmethod
+    def date_str_calc(start_date, date_step=1):
+        """获取 date_step 天后的日期"""
+        return arrow.get(start_date).shift(days=date_step).datetime.strftime("%Y-%m-%d")
+
+    @staticmethod
     def obj_prefix_calc(obj_prefix, depth, date_prefix=''):
         if date_prefix == "today":
             date_prefix = datetime.date.today().strftime("%Y-%m-%d") + '/'  # 按日期写入不同文件夹
@@ -147,7 +152,7 @@ class BaseWorker(object):
             bucket = self.bucket_name_calc(bucket_prefix, idx)
             client.mb(bucket)
 
-    def init(self):
+    def stage_init(self):
         """
         批量创建特定桶
         :return:
@@ -156,7 +161,7 @@ class BaseWorker(object):
         # self.set_core_loglevel()
         pass
 
-    def prepare(self):
+    def stage_prepare(self):
         """
         批量创建特定对象
         :return:
@@ -263,13 +268,14 @@ class BaseWorker(object):
             await self.worker(*item)
             queue.task_done()
 
-    async def run(self):
+    async def stage_main(self):
         """
         执行 生产->消费 queue
         :return:
         """
-        self.init()
-        self.prepare()
+        logger.log("STAGE", "main->执行测试，obj={}, bucket={}, concurrent={}".format(
+            self.obj_num, self.bucket_num, self.concurrent
+        ))
 
         queue = asyncio.Queue()
         # 创建100倍 concurrent 数量的consumer
@@ -282,6 +288,14 @@ class BaseWorker(object):
         for c in consumers:
             c.cancel()
 
+    def run(self):
+        self.stage_init()
+        self.stage_prepare()
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.stage_main())
+        loop.close()
+
 
 if __name__ == '__main__':
     bw = BaseWorker(
@@ -289,6 +303,4 @@ if __name__ == '__main__':
         'D:\\minio\\upload_data', 'bucket', 1, 2, '', 10,
         3, False, 30
     )
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(bw.run())
-    loop.close()
+    bw.run()

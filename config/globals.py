@@ -33,7 +33,7 @@ LOG_LEVEL = global_cf.get_str("DEFAULT", "log_level", vars=DefaultOption(global_
 LOG_ROTATION = global_cf.get_str("DEFAULT", "log_rotation", vars=DefaultOption(global_cf.cf, "DEFAULT", log_rotation='100 MB'))
 LOG_RETENTION = global_cf.get_str("DEFAULT", "log_retention", vars=DefaultOption(global_cf.cf, "DEFAULT", log_retention='30 days'))
 
-DB_SQLITE3 = os.path.join(BASE_DIR, "db.sqlite3")
+DB_SQLITE3 = os.path.join(LOG_DIR, "{}_db.sqlite3".format(TIME_STR))
 
 # 设置全局 key/value
 _global_dict = {}

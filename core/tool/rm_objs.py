@@ -31,11 +31,11 @@ def multi_rm_objs_by_bucket(
     client = MClient(endpoint, access_key, secret_key, tls, alias)
     bucket_list = client.get_all_buckets()
     futures = set()
-    with ThreadPoolExecutor(max_workers=max_workers) as exector:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for bucket in bucket_list:
             if bucket_name and bucket_name not in bucket:
                 continue
-            futures.add(exector.submit(rm_objs_by_bucket_until_done, client, bucket))
+            futures.add(executor.submit(rm_objs_by_bucket_until_done, client, bucket))
     for future in as_completed(futures):
         future.result()
 

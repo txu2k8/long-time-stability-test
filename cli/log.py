@@ -51,8 +51,9 @@ def init_logger(prefix='test', case_id=0, trace=False):
     logger.remove()
 
     # 新增级别
-    logger.level('MC', no=21, color='<blue><bold>')  # INFO < MC < ERROR
-    logger.level('S3CMD', no=22, color='<blue><bold>')  # INFO < S3CMD < ERROR
+    logger.level('STAGE', no=21, color='<blue><bold>')  # INFO < STAGE < ERROR
+    logger.level('MC', no=22, color='<blue><bold>')  # INFO < MC < ERROR
+    logger.level('S3CMD', no=23, color='<blue><bold>')  # INFO < S3CMD < ERROR
     logger.level('OBJ', no=51)  # CRITICAL < OBJ，打印操作的对象列表
     logger.level('DESC', no=52)  # CRITICAL < DESC，打印描述信息到所有日志文件
 

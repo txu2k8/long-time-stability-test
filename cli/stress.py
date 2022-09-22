@@ -9,7 +9,6 @@
 """
 import sys
 import re
-import asyncio
 from datetime import datetime
 from typing import List
 from loguru import logger
@@ -92,9 +91,7 @@ def put(
         local_path, bucket_prefix, bucket_num, depth,
         obj_prefix, obj_num, concurrent, multipart, duration, cover, idx_start, idx_width
     )
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(put_obj.run())
-    loop.close()
+    put_obj.run()
 
 
 @app.command(help='stress put-del objects')
@@ -130,9 +127,7 @@ def put_del(
         local_path, bucket_prefix, bucket_num, depth,
         obj_prefix, obj_num, concurrent, multipart, duration, cover, idx_start, idx_width
     )
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(put_del_obj.run())
-    loop.close()
+    put_del_obj.run()
 
 
 @app.command(help='stress get objects')
@@ -168,9 +163,7 @@ def get(
         local_path, bucket_prefix, bucket_num, depth,
         obj_prefix, obj_num, concurrent, multipart, duration, cover, idx_start, idx_width
     )
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(get_obj.run())
-    loop.close()
+    get_obj.run()
 
 
 @app.command(help='stress delete objects')
@@ -207,9 +200,7 @@ def delete(
         '', bucket_prefix, bucket_num, depth,
         obj_prefix, obj_num, concurrent, False, duration, cover, idx_start, idx_width
     )
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(delete_obj.run())
-    loop.close()
+    delete_obj.run()
 
 
 @app.command(help='stress list objects')
@@ -245,9 +236,7 @@ def list(
         '', bucket_prefix, bucket_num, depth,
         obj_prefix, obj_num, concurrent, False, duration, cover, idx_start, idx_width
     )
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(ls_obj.run())
-    loop.close()
+    ls_obj.run()
 
 
 if __name__ == "__main__":
