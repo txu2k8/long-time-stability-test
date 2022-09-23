@@ -41,8 +41,8 @@ def video_monitor_1(
         bucket_prefix: str = typer.Option('bucket', help="桶名称前缀"),
         bucket_num: int = typer.Option(1, min=1, help="桶数量，对象会被均衡写入到各个桶中"),
         obj_prefix: str = typer.Option('data', help="对象名前缀"),
-        obj_num: int = typer.Option(500, min=1, help="预置对象数，实际均分到每个桶里"),
-        obj_num_pd: int = typer.Option(100, min=1, help="每天预置对象数，实际均分到每个桶里"),
+        obj_num: int = typer.Option(50, min=1, help="预置对象数，实际均分到每个桶里"),
+        obj_num_pd: int = typer.Option(10, min=1, help="每天预置对象数，实际均分到每个桶里"),
         local_path: str = typer.Option(..., help="指定源文件路径，随机上传文件"),
         multipart: MultipartType = typer.Option(MultipartType.enable.value, help="多段上传"),
         concurrent: int = typer.Option(1, min=1, help="每秒并行数"),
@@ -61,6 +61,6 @@ def video_monitor_1(
     vm_obj = VideoMonitor1(
         client_types, endpoint, access_key, secret_key, tls, alias,
         local_path, bucket_prefix, bucket_num, obj_prefix, obj_num, obj_num_pd,
-        concurrent, prepare_concurrent, multipart, idx_start, idx_width
+        multipart, concurrent, prepare_concurrent, idx_start, idx_width
     )
     vm_obj.run()

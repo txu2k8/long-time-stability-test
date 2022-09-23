@@ -109,7 +109,7 @@ class MClient(ClientInterface, ABC):
 
     async def put(self, src_path, bucket, dst_path, disable_multipart=False, tags="", attr=""):
         """
-        uc cp命令上传对象
+        mc cp命令上传对象
         :param src_path:
         :param bucket:
         :param dst_path:
@@ -132,7 +132,7 @@ class MClient(ClientInterface, ABC):
 
     async def put_without_attr(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
         """
-        uc cp命令上传对象
+        mc cp命令上传对象
         :param src_path:
         :param bucket:
         :param dst_path:
@@ -153,7 +153,7 @@ class MClient(ClientInterface, ABC):
 
     async def get(self, bucket, obj_path, local_path, disable_multipart=False):
         """
-        uc cp命令下载对象
+        mc cp命令下载对象
         :param bucket:
         :param obj_path:
         :param local_path:
@@ -172,7 +172,7 @@ class MClient(ClientInterface, ABC):
 
     async def delete(self, bucket, dst_path):
         """
-        uc rm命令删除对象
+        mc rm命令删除对象
         :param bucket:
         :param dst_path:
         :return:
@@ -275,7 +275,7 @@ class MClient(ClientInterface, ABC):
 
     def delete_bucket_objs(self, bucket):
         """
-        uc rm命令删除桶中所有对象
+        mc rm命令删除桶中所有对象
         :param bucket:
         :return:
         """

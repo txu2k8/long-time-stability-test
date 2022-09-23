@@ -28,12 +28,12 @@ class VideoMonitor1(BaseWorker):
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, obj_num_per_day=1,
-            concurrent=1, multipart=False, idx_start=0, idx_width=1
+            multipart=False, concurrent=1, prepare_concurrent=1, idx_start=0, idx_width=1
     ):
         super(VideoMonitor1, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num, 1, obj_prefix, obj_num,
-            concurrent, multipart, 0, False, idx_start, idx_width
+            multipart, concurrent, prepare_concurrent, idx_start, idx_width, 0, False
         )
         self.obj_num_per_day = obj_num_per_day
         # 准备源数据文件池 字典
@@ -42,7 +42,8 @@ class VideoMonitor1(BaseWorker):
         self.db_table_name = "video_monitor"
         self.sqlite3_opt = Sqlite3Operation(db_path=DB_SQLITE3, show=False)
         self.start_date = "2022-09-20"
-        self.put_idx = 0
+        self.idx_main_start = self.obj_num + 1 if self.idx_start <= self.obj_num else self.idx_start  # main阶段idx起始
+        self.idx_put_done = self.idx_start  # put操作完成的进度idx
 
     async def worker_put(self, client, bucket, idx):
         """
@@ -64,7 +65,7 @@ class VideoMonitor1(BaseWorker):
         insert_sql = '''INSERT INTO video_monitor ( idx, date, bucket, obj_path ) values (?, ?, ?, ?)'''
         data = [(str(idx), current_date, bucket, obj_path)]
         self.sqlite3_opt.insert_update_delete(insert_sql, data)
-        self.put_idx = idx
+        self.idx_put_done = idx
 
     @staticmethod
     async def worker_delete(client, bucket, obj_path):
@@ -83,15 +84,17 @@ class VideoMonitor1(BaseWorker):
         :param queue:
         :return:
         """
-        logger.info("Produce PUT bucket={}, concurrent={}, ".format(self.bucket_num, self.concurrent))
+        logger.info("Produce PREPARE bucket={}, concurrent={}, ".format(self.bucket_num, self.prepare_concurrent))
         client = self.client_list[0]
         idx = self.idx_start
-        while True:
+        while idx <= self.obj_num:
             for bucket_idx in range(self.bucket_num):  # 依次处理每个桶中数据：写、读、删、列表、删等
+                if idx > self.obj_num:
+                    break
                 bucket = self.bucket_name_calc(self.bucket_prefix, bucket_idx)
                 await queue.put((client, bucket, idx))
-                if idx % self.concurrent == 0:
-                    await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
+                if idx % self.prepare_concurrent == 0:
+                    await asyncio.sleep(1)  # 每秒生产 {prepare_concurrent} 个待处理项
                 idx += 1
 
     async def producer_put(self, queue):
@@ -103,7 +106,7 @@ class VideoMonitor1(BaseWorker):
         """
         logger.info("Produce PUT bucket={}, concurrent={}, ".format(self.bucket_num, self.concurrent))
         client = self.client_list[0]
-        idx = self.idx_start
+        idx = self.idx_main_start
         while True:
             for bucket_idx in range(self.bucket_num):  # 依次处理每个桶中数据：写、读、删、列表、删等
                 bucket = self.bucket_name_calc(self.bucket_prefix, bucket_idx)
@@ -119,7 +122,7 @@ class VideoMonitor1(BaseWorker):
         :param queue:
         :return:
         """
-        logger.info("Produce Delete bucket={}, concurrent={}, ".format(self.bucket_num, self.concurrent))
+        logger.info("Produce DELETE bucket={}, concurrent={}, ".format(self.bucket_num, self.concurrent))
         client = self.client_list[0]
         start_date = self.start_date
         rows = []
@@ -134,8 +137,8 @@ class VideoMonitor1(BaseWorker):
                 if count % self.concurrent == 0:
                     await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
                 count += 1
-            logger.debug("当前 put_idx={}".format(self.put_idx))
-            if self.put_idx > self.obj_num:  # 预置数据完成
+            logger.debug("当前 put_idx={}".format(self.idx_put_done))
+            if self.idx_put_done > self.obj_num:  # 预置数据完成
                 end_date = self.date_str_calc(start_date, 1)  # 删除开始日期1天后的数据
                 sql_cmd = '''SELECT bucket,obj_path FROM {} where  date >= \"{}\" and date < \"{}\"'''.format(
                     self.db_table_name, start_date, end_date)
@@ -181,7 +184,7 @@ class VideoMonitor1(BaseWorker):
         初始化
         :return:
         """
-        logger.log("STAGE", "init->批量创建特定桶，bucket_prefix={}, bucket_num={}".format(
+        logger.log("STAGE", "init->批量创建特定桶、初始化数据库，bucket_prefix={}, bucket_num={}".format(
             self.bucket_prefix, self.bucket_num
         ))
 
@@ -204,6 +207,7 @@ class VideoMonitor1(BaseWorker):
                                     '''.format(self.db_table_name)
         self.sqlite3_opt.execute('DROP TABLE IF EXISTS {}'.format(self.db_table_name))
         self.sqlite3_opt.create_table(create_table)
+        logger.log("STAGE", "初始化完成！bucket_prefix={}, bucket_num={}".format(self.bucket_prefix, self.bucket_num))
 
     async def stage_prepare(self):
         """
@@ -211,20 +215,22 @@ class VideoMonitor1(BaseWorker):
         :return:
         """
         logger.log("STAGE", "prepare->预置对象，PUT obj={}, bucket={}, concurrent={}".format(
-            self.obj_num, self.bucket_num, self.concurrent
+            self.obj_num, self.bucket_num, self.prepare_concurrent
         ))
         queue = asyncio.Queue()
         # 创建100倍 concurrent 数量的consumer
         consumers = [asyncio.ensure_future(self.consumer_put(queue)) for _ in range(self.concurrent * 2000)]
 
-        await self.producer_put(queue)
+        await self.producer_prepare(queue)
         await queue.join()
         for c in consumers:
             c.cancel()
+        logger.log("STAGE", "预置对象完成！obj={}, bucket={}".format(self.obj_num, self.bucket_num))
+        await asyncio.sleep(5)
 
     async def stage_main(self):
         logger.log("STAGE", "main->写删均衡测试，put_obj_idx_start={}, bucket={}, concurrent={}".format(
-            self.obj_num, self.bucket_num, self.concurrent
+            self.idx_main_start, self.bucket_num, self.concurrent
         ))
 
         queue_put = asyncio.Queue()
@@ -251,9 +257,7 @@ class VideoMonitor1(BaseWorker):
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.stage_prepare())
-        loop.close()
 
-        loop = asyncio.get_event_loop()
         asyncio.ensure_future(self.stage_main())
         loop.run_forever()
 
