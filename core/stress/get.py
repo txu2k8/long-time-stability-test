@@ -21,12 +21,14 @@ class GetObject(BaseWorker):
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
-            concurrent=1, multipart=False, duration=0, cover=False, idx_start=0, idx_width=1
+            multipart=False, concurrent=1, prepare_concurrent=1,
+            idx_start=0, idx_width=1, duration=0, cover=False
     ):
         super(GetObject, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num, depth, obj_prefix, obj_num,
-            concurrent, multipart, duration, cover, idx_start, idx_width
+            multipart, concurrent, prepare_concurrent,
+            idx_start, idx_width, duration, cover
         )
         pass
 

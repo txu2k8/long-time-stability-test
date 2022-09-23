@@ -117,6 +117,18 @@ class S3CmdClient(ClientInterface, ABC):
             logger.error("上传失败！ {} -> {}/{}".format(src_path, bucket, dst_path))
         return rc
 
+    async def put_without_attr(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
+        """
+        s3cmd put FILE [FILE...] s3://BUCKET[/PREFIX] 命令上传对象
+        :param src_path:
+        :param bucket:
+        :param dst_path:
+        :param disable_multipart:
+        :param tags:
+        :return:
+        """
+        return await self.put(src_path, bucket, dst_path, disable_multipart, tags)
+
     async def get(self, bucket, obj_path, local_path, disable_multipart=False):
         """
         s3cmd get s3://BUCKET/OBJECT LOCAL_FILE 命令下载对象

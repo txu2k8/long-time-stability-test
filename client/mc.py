@@ -130,6 +130,27 @@ class MClient(ClientInterface, ABC):
             logger.error("上传失败！{} -> {}/{}".format(src_path, bucket, dst_path))
         return rc
 
+    async def put_without_attr(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
+        """
+        uc cp命令上传对象
+        :param src_path:
+        :param bucket:
+        :param dst_path:
+        :param disable_multipart:
+        :param tags:
+        :return:
+        """
+        tags += "{}disable-multipart={}".format('&' if tags else '', disable_multipart)
+        cp = 'cp --disable-multipart' if disable_multipart else 'cp'
+        args = '{} --tags "{}" {} {}/{}/{}'.format(cp, tags, src_path, self.alias, bucket, dst_path)
+        rc, _, _ = await self._async_exec(args)
+        if rc == 0:
+            logger.success("上传成功！{} -> {}/{}".format(src_path, bucket, dst_path))
+            logger.log("OBJ", "{}/{}".format(bucket, dst_path))
+        else:
+            logger.error("上传失败！{} -> {}/{}".format(src_path, bucket, dst_path))
+        return rc
+
     async def get(self, bucket, obj_path, local_path, disable_multipart=False):
         """
         uc cp命令下载对象

@@ -21,6 +21,10 @@ class ClientInterface(ABC):
         pass
 
     @abstractmethod
+    def put_without_attr(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
     def get(self, *args, **kwargs):
         pass
 

@@ -54,8 +54,9 @@ class BaseWorker(object):
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
-            concurrent=1, multipart=False,
-            duration=0, cover=False, idx_start=0, idx_width=1,
+            multipart=False, concurrent=1, prepare_concurrent=1,
+            idx_start=0, idx_width=1,
+            duration=0, cover=False,
     ):
         self.client_types = client_types
         self.endpoint = endpoint
@@ -69,12 +70,14 @@ class BaseWorker(object):
         self.depth = depth
         self.obj_prefix = obj_prefix
         self.obj_num = obj_num
-        self.concurrent = concurrent
         self.multipart = multipart
-        self.duration = duration
-        self.cover = cover
+        self.concurrent = concurrent
+        self.prepare_concurrent = prepare_concurrent
         self.idx_start = idx_start
         self.idx_width = idx_width
+        self.duration = duration
+        self.cover = cover
+
         # 初始化客户端
         self.clients_info = init_clients(
             self.client_types, self.endpoint, self.access_key, self.secret_key, self.tls, self.alias)

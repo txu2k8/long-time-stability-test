@@ -63,7 +63,7 @@ def get_local_files(local_path) -> List[FileInfo]:
                 file_type=file_type,
                 md5=md5,
                 attr="filename={};md5={};type={}".format(filename, md5, file_type),
-                tags="filename={}&md5={}&type={}".format(filename, md5, file_type),
+                tags="md5={}".format(md5),  # filename={}&md5={}&type={}
             )
             file_list.append(file_info)
     return file_list
