@@ -301,3 +301,17 @@ class MClient(ClientInterface, ABC):
                 if bucket_name:
                     buckets.append(bucket_name)
         return buckets
+
+    def get_drives_num(self):
+        """
+        获取集群中每个节点的drive数量
+        :return:
+        """
+        drives_num = 0
+        args = 'admin info {} | grep Drives'.format(self.alias)
+        rc, output = self._exec(args)
+        if rc == 0:
+            logger.success("集群Drive信息：{}/*".format(output))
+            drives_nums = re.findall(r"Drives: (\d+)/", output.strip("\n")[0])
+            drives_num = int(drives_nums[0] if drives_nums else 0)
+        return drives_num
