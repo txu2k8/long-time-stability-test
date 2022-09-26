@@ -142,6 +142,7 @@ class VideoMonitor1(BaseWorker):
                 end_date = self.date_str_calc(start_date, 1)  # 删除开始日期1天后的数据
                 sql_cmd = '''SELECT bucket,obj_path FROM {} where  date >= \"{}\" and date < \"{}\"'''.format(
                     self.db_table_name, start_date, end_date)
+                logger.info(sql_cmd)
                 rows = self.sqlite3_opt.fetchall(sql_cmd)
                 start_date = end_date
                 await asyncio.sleep(0)
