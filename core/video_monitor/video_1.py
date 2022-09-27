@@ -22,18 +22,27 @@ from core.stress.base_worker import BaseWorker
 
 
 class VideoMonitor1(BaseWorker):
-    """视频监控场景测试 - 1"""
+    """
+    视频监控场景测试 - 1，读取数据库，写删不同协程中并行处理，多对象并行处理
+    1、init阶段：新建10桶，初始化数据库用于存储写入的对象路径
+    2、Prepare阶段：预埋580万个128MB对象，平均分配到10桶中，预埋数据并行数=30
+    3、Main阶段：写删均衡测试
+        （1）.写：每秒项queue队列放入16条待上传对象数据信息，16*2000个消费进行并行上传，上传时基于每日对象数和对象idx计算对象应该存储的桶和日期路径，上传完成后写入本地数据库
+        （2）.删：读取本地数据库中最早一天的数据，每秒项queue队列放入16条待删除对象数据信息，16*2000个消费进行并行删除，该日数据删除完成后再从本地数据库读取下一天数据
+        （3）.写、删并行处理
+        （4）。每秒16并行逻辑：连续放入16条数据到queue后，sleep1秒
+    """
 
     def __init__(
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, obj_num_per_day=1,
-            multipart=False, concurrent=1, prepare_concurrent=1, idx_start=0, idx_width=1
+            multipart=False, concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0
     ):
         super(VideoMonitor1, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num, 1, obj_prefix, obj_num,
-            multipart, concurrent, prepare_concurrent, idx_start, idx_width, 0, False
+            multipart, concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start, 0, False
         )
         self.obj_num_per_day = obj_num_per_day
         # 准备源数据文件池 字典
@@ -42,10 +51,25 @@ class VideoMonitor1(BaseWorker):
         self.db_table_name = "video_monitor"
         self.sqlite3_opt = Sqlite3Operation(db_path=DB_SQLITE3, show=False)
         self.start_date = "2022-09-20"
-        self.idx_main_start = self.obj_num + 1 if self.idx_start <= self.obj_num else self.idx_start  # main阶段idx起始
-        self.idx_put_done = self.idx_start  # put操作完成的进度idx
+        self.idx_main_start = self.obj_num + 1 if self.idx_put_start <= self.obj_num else self.idx_put_start  # main阶段idx起始
+        self.idx_put_done = self.idx_put_start  # put操作完成的进度idx
 
-    async def worker_put(self, client, bucket, idx):
+    def bucket_obj_path_calc(self, idx):
+        """
+        基于对象idx计算该对象应该存储的桶和对象路径
+        :param idx:
+        :return:
+        """
+        # 计算对象应该存储的桶名称
+        bucket = self.bucket_name_calc(self.bucket_prefix, idx)
+        # 计算对象路径
+        date_step = idx // self.obj_num_per_day  # 每日写N个对象，放在一个日期命名的文件夹
+        current_date = self.date_str_calc(self.start_date, date_step)
+        date_prefix = current_date + '/'
+        obj_path = self.obj_path_calc(idx, date_prefix)
+        return bucket, obj_path, current_date
+
+    async def worker_put(self, client, idx):
         """
         上传指定对象
         :param client:
@@ -53,11 +77,8 @@ class VideoMonitor1(BaseWorker):
         :param idx:
         :return:
         """
-        date_step = idx // self.obj_num_per_day  # 每日写N个对象，放在一个日期命名的文件夹
-        current_date = self.date_str_calc(self.start_date, date_step)
-        date_prefix = current_date + '/'
-
-        obj_path = self.obj_path_calc(idx, date_prefix)
+        bucket, obj_path, current_date = self.bucket_obj_path_calc(idx)
+        # 获取待上传的源文件
         src_file = random.choice(self.file_list)
         disable_multipart = self.disable_multipart_calc()
         await client.put_without_attr(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags)
@@ -65,7 +86,6 @@ class VideoMonitor1(BaseWorker):
         insert_sql = '''INSERT INTO video_monitor ( idx, date, bucket, obj_path ) values (?, ?, ?, ?)'''
         data = [(str(idx), current_date, bucket, obj_path)]
         self.sqlite3_opt.insert_update_delete(insert_sql, data)
-        self.idx_put_done = idx
 
     @staticmethod
     async def worker_delete(client, bucket, obj_path):
@@ -86,16 +106,13 @@ class VideoMonitor1(BaseWorker):
         """
         logger.info("Produce PREPARE bucket={}, concurrent={}, ".format(self.bucket_num, self.prepare_concurrent))
         client = self.client_list[0]
-        idx = self.idx_start
+        idx = self.idx_put_start
         while idx <= self.obj_num:
-            for bucket_idx in range(self.bucket_num):  # 依次处理每个桶中数据：写、读、删、列表、删等
-                if idx > self.obj_num:
-                    break
-                bucket = self.bucket_name_calc(self.bucket_prefix, bucket_idx)
-                await queue.put((client, bucket, idx))
-                if idx % self.prepare_concurrent == 0:
-                    await asyncio.sleep(1)  # 每秒生产 {prepare_concurrent} 个待处理项
-                idx += 1
+            await queue.put((client, idx))
+            self.idx_put_done = idx
+            if idx % self.prepare_concurrent == 0:
+                await asyncio.sleep(1)  # 每秒生产 {prepare_concurrent} 个待处理项
+            idx += 1
 
     async def producer_put(self, queue):
         """
@@ -108,12 +125,11 @@ class VideoMonitor1(BaseWorker):
         client = self.client_list[0]
         idx = self.idx_main_start
         while True:
-            for bucket_idx in range(self.bucket_num):  # 依次处理每个桶中数据：写、读、删、列表、删等
-                bucket = self.bucket_name_calc(self.bucket_prefix, bucket_idx)
-                await queue.put((client, bucket, idx))
-                if idx % self.concurrent == 0:
-                    await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
-                idx += 1
+            await queue.put((client, idx))
+            self.idx_put_done = idx
+            if idx % self.concurrent == 0:
+                await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
+            idx += 1
 
     async def producer_delete(self, queue):
         """

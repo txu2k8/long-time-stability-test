@@ -18,13 +18,13 @@ class ListObject(BaseWorker):
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
             multipart=False, concurrent=1, prepare_concurrent=1,
-            idx_start=0, idx_width=1, duration=0, cover=False
+            idx_width=1, idx_put_start=0, idx_del_start=0, duration=0, cover=False
     ):
         super(ListObject, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
             "", bucket_prefix, bucket_num, depth, obj_prefix, obj_num,
             multipart, concurrent, prepare_concurrent,
-            idx_start, idx_width,
+            idx_width, idx_put_start, idx_del_start,
             duration, cover
         )
         pass

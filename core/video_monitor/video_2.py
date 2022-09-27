@@ -19,81 +19,33 @@ from loguru import logger
 from utils.util import get_local_files
 from pkgs.sqlite_opt import Sqlite3Operation
 from config import DB_SQLITE3
-from core.stress.base_worker import BaseWorker
+from core.video_monitor.video_1 import VideoMonitor1
 
 
-class VideoMonitor1(BaseWorker):
-    """视频监控场景测试 - 1"""
+class VideoMonitor2(VideoMonitor1):
+    """视频监控场景测试 - 2，不读取数据库，写删不同协程中并行处理，多对象并行处理"""
     def __init__(
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
-            local_path, bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, obj_per_day=1,
-            concurrent=1, multipart=False, idx_start=0, idx_width=1
+            local_path, bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, obj_num_per_day=1,
+            multipart=False, concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0
     ):
-        super(VideoMonitor1, self).__init__(
+        super(VideoMonitor2, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
-            local_path, bucket_prefix, bucket_num, 1, obj_prefix, obj_num,
-            concurrent, multipart, 0, False, idx_start, idx_width
+            local_path, bucket_prefix, bucket_num, obj_prefix, obj_num, obj_num_per_day,
+            multipart, concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start
         )
-        self.obj_per_day = obj_per_day
-        # 准备源数据文件池 字典
-        self.file_list = get_local_files(local_path)
-        # 数据库
-        self.db_table_name = "video_monitor"
-        self.sqlite3_opt = Sqlite3Operation(db_path=DB_SQLITE3, show=False)
-        self.start_date = "2022-09-20"
-        self.current_date = "2022-09-20"
+        pass
 
-    async def worker_put(self, client, bucket, idx):
+    async def worker_delete(self, client, idx):
         """
         上传指定对象
         :param client:
-        :param bucket:
         :param idx:
         :return:
         """
-        # date_prefix = ""
-        date_step = idx // self.obj_per_day  # 每日写N个对象，放在一个文件夹
-        self.current_date = self.date_str_calc(self.start_date, date_step)
-        date_prefix = self.current_date + '/'
-
-        obj_path = self.obj_path_calc(idx, date_prefix)
-        src_file = random.choice(self.file_list)
-        disable_multipart = self.disable_multipart_calc()
-        insert_sql = '''INSERT INTO video_monitor ( idx, date, bucket, obj_path ) values (?, ?, ?, ?)'''
-        data = [(str(idx), self.current_date, bucket, obj_path)]
-        self.sqlite3_opt.insert_update_delete(insert_sql, data)
-
-        await client.put(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags, src_file.attr)
-
-    @staticmethod
-    async def worker_delete(client, bucket, obj_path):
-        """
-        上传指定对象
-        :param client:
-        :param bucket:
-        :param obj_path:
-        :return:
-        """
+        bucket, obj_path, _ = self.bucket_obj_path_calc(idx)
         await client.delete(bucket, obj_path)
-
-    async def producer_put(self, queue):
-        """
-        produce queue队列，每秒生产concurrent个待处理项，持续执行不停止，直到收到kill进程
-        idx 一直累加，设计idx宽度为11位=百亿级
-        :param queue:
-        :return:
-        """
-        logger.info("Produce PUT bucket={}, concurrent={}, ".format(self.bucket_num, self.concurrent))
-        client = self.client_list[0]
-        idx = 0
-        while True:
-            for bucket_idx in range(self.bucket_num):  # 依次处理每个桶中数据：写、读、删、列表、删等
-                bucket = self.bucket_name_calc(self.bucket_prefix, bucket_idx)
-                await queue.put((client, bucket, idx))
-                if idx % self.concurrent == 0:
-                    await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
-                idx += 1
 
     async def producer_delete(self, queue):
         """
@@ -102,151 +54,21 @@ class VideoMonitor1(BaseWorker):
         :param queue:
         :return:
         """
-        logger.info("Produce Delete bucket={}, concurrent={}, ".format(self.bucket_num, self.concurrent))
+        logger.info("Produce DELETE bucket={}, concurrent={}, ".format(self.bucket_num, self.concurrent))
         client = self.client_list[0]
-        tmp_date = self.date_str_calc(self.current_date, 3)
-        sql_cmd = '''SELECT * FROM {} where date < {}'''.format(self.db_table_name, tmp_date)
-        rows = self.sqlite3_opt.fetchall(sql_cmd)
-        print(type(rows))
-        idx = 0
+        start_date = self.start_date
+        idx_del = self.idx_del_start if self.idx_del_start > 0 else -1
         while True:
-            for row in rows:  # 依次处理每个桶中数据：写、读、删、列表、删等
-                bucket = row["bucket"]
-                obj_path = row["obj_path"]
-                await queue.put((client, bucket, obj_path))
-                if idx % self.concurrent == 0:
+            logger.debug("当前 put_idx={}".format(self.idx_put_done))
+            if self.idx_put_done > self.obj_num:  # 预置数据完成
+                await queue.put((client, idx_del))
+                if idx_del % self.concurrent == 0:
                     await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
-                idx += 1
-            tmp_date = self.date_str_calc(self.current_date, 3)
-            sql_cmd = '''SELECT * FROM {} where date < {}'''.format(self.db_table_name, tmp_date)
-            rows = self.sqlite3_opt.fetchall(sql_cmd)
-
-    async def consumer_put(self, queue):
-        """
-        consume queue队列，指定队列中全部被消费
-        :param queue:
-        :return:
-        """
-        while True:
-            item = await queue.get()
-            await self.worker_put(*item)
-            queue.task_done()
-
-    async def consumer_delete(self, queue):
-        """
-        consume queue队列，指定队列中全部被消费
-        :param queue:
-        :return:
-        """
-        while True:
-            item = await queue.get()
-            await self.worker_delete(*item)
-            queue.task_done()
-
-    async def run_put(self):
-        queue = asyncio.Queue()
-        # 创建100倍 concurrent 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer_put(queue)) for _ in range(self.concurrent * 2000)]
-        await self.producer_put(queue)
-        await queue.join()
-        for c in consumers:
-            c.cancel()
-
-    async def run_delete(self):
-        queue = asyncio.Queue()
-        # 创建100倍 concurrent 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer_delete(queue)) for _ in range(self.concurrent * 2000)]
-        await self.producer_delete(queue)
-        await queue.join()
-        for c in consumers:
-            c.cancel()
-
-    def stage_init(self):
-        """
-        初始化
-        :return:
-        """
-        logger.log("STAGE", "init->批量创建特定桶，bucket_prefix={}, bucket_num={}".format(
-            self.bucket_prefix, self.bucket_num
-        ))
-
-        # 开启debug日志
-        # self.set_core_loglevel()
-
-        # 准备桶
-        client = random.choice(self.client_list)
-        self.make_bucket_if_not_exist(client, self.bucket_prefix, self.bucket_num)
-
-        # 初始化数据库
-        logger.log("STAGE", "init->初始化数据库、建表，table={}".format(self.db_table_name))
-        create_table = '''CREATE TABLE IF NOT EXISTS `{}` (
-                                      `id` INTEGER PRIMARY KEY,
-                                      `idx` varchar(20) NOT NULL,
-                                      `date` varchar(20) NOT NULL,
-                                      `bucket` varchar(100) NOT NULL,
-                                      `obj_path` varchar(500) NOT NULL
-                                    )
-                                    '''.format(self.db_table_name)
-        self.sqlite3_opt.execute('DROP TABLE IF EXISTS {}'.format(self.db_table_name))
-        self.sqlite3_opt.create_table(create_table)
-
-    def stage_prepare(self):
-        """
-        批量创建特定对象
-        :return:
-        """
-        logger.log("STAGE", "prepare->预置对象，PUT obj={}, bucket={}, total={}, concurrent={}".format(
-            self.obj_num, self.bucket_num, self.obj_num*self.bucket_num, self.concurrent
-        ))
-
-    def tmp1(self, loop):
-        # loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.run_put())
-        # loop.close()
-
-    def tmp2(self, loop):
-        # loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.run_delete())
-        # loop.close()
-
-    def stage_main(self):
-        logger.log("STAGE", "main->写删均衡测试，put_obj_idx_start={}, bucket={}, concurrent={}".format(
-            self.obj_num, self.bucket_num, self.concurrent
-        ))
-        # tasks = [
-        #     asyncio.ensure_future(self.run_put()),
-        #     # asyncio.ensure_future(self.run_delete()),
-        # ]
-        # loop = asyncio.get_event_loop()
-        # loop.run_until_complete(asyncio.gather(*tasks))
-        # loop.close()
-
-        import threading as mp
-        # p1 = mp.Process(target=asyncio.ensure_future, args=(self.run_put(),))
-        # p2 = mp.Process(target=asyncio.ensure_future, args=(self.run_delete(),))
-
-        loop = asyncio.get_event_loop()
-        p1 = mp.Thread(target=self.tmp1, args=(loop, ))
-        p2 = mp.Thread(target=self.tmp2, args=(loop, ))
-        p1.start()
-        p1.join()
-        p2.start()
-        p2.join()
-        loop.close()
-
-    def run(self):
-        """
-        执行 生产->消费 queue
-        :return:
-        """
-        self.stage_init()
-        self.stage_prepare()
-        self.stage_main()
+                idx_del += 1
+            else:
+                logger.debug("DELETE：数据预置中，暂不删除...")
+                await asyncio.sleep(1)
 
 
 if __name__ == '__main__':
-    vm = VideoMonitor1(
-        'mc', '127.0.0.1:9000', 'minioadmin', 'minioadmin', False, 'play',
-        'D:\\minio\\upload_data', 'bucket', concurrent=2
-    )
-    vm.run()
+    pass

@@ -55,7 +55,7 @@ class BaseWorker(object):
             client_types, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
             multipart=False, concurrent=1, prepare_concurrent=1,
-            idx_start=0, idx_width=1,
+            idx_width=1, idx_put_start=0, idx_del_start=0,
             duration=0, cover=False,
     ):
         self.client_types = client_types
@@ -73,8 +73,9 @@ class BaseWorker(object):
         self.multipart = multipart
         self.concurrent = concurrent
         self.prepare_concurrent = prepare_concurrent
-        self.idx_start = idx_start
         self.idx_width = idx_width
+        self.idx_put_start = idx_put_start
+        self.idx_del_start = idx_del_start
         self.duration = duration
         self.cover = cover
 
@@ -95,15 +96,15 @@ class BaseWorker(object):
         else:
             return random.choice([True, False])
 
-    @staticmethod
-    def bucket_name_calc(bucket_prefix, idx):
+    def bucket_name_calc(self, bucket_prefix, idx):
         """
-        依据bucket前缀和idx序号计算bucket名称
+        依据bucket前缀和对象idx序号计算bucket名称
         :param bucket_prefix:
         :param idx:
         :return:
         """
-        return '{}{}'.format(bucket_prefix, idx)
+        bucket_idx = idx % self.bucket_num
+        return '{}{}'.format(bucket_prefix, bucket_idx)
 
     @staticmethod
     def date_str_calc(start_date, date_step=1):
@@ -112,6 +113,13 @@ class BaseWorker(object):
 
     @staticmethod
     def obj_prefix_calc(obj_prefix, depth, date_prefix=''):
+        """
+        拼接对象前缀、路径、日期前缀
+        :param obj_prefix:
+        :param depth:
+        :param date_prefix:
+        :return:
+        """
         if date_prefix == "today":
             date_prefix = datetime.date.today().strftime("%Y-%m-%d") + '/'  # 按日期写入不同文件夹
 
@@ -193,7 +201,7 @@ class BaseWorker(object):
         if self.duration > 0:
             # 持续时间
             logger.info("Run test duration {}s, concurrent={}".format(self.duration, self.concurrent))
-            idx = self.idx_start
+            idx = self.idx_put_start
             total = 0
             start = datetime.datetime.now()
             end = datetime.datetime.now()
@@ -213,7 +221,7 @@ class BaseWorker(object):
             # 指定处理数量
             logger.info("PUT obj={}, bucket={}, concurrent={}, ".format(self.obj_num, self.bucket_num, self.concurrent))
             total = 0
-            for x in range(self.idx_start, self.obj_num):
+            for x in range(self.idx_put_start, self.obj_num):
                 logger.trace("producing {}/{}".format(x, self.obj_num))
                 client = random.choice(self.client_list)  # 随机选择客户端
                 for bucket_idx in range(self.bucket_num):  # 依次处理每个桶中数据：写、读、删、列表、删等
@@ -244,7 +252,7 @@ class BaseWorker(object):
         while self.duration > (end - start).total_seconds():
             logger.info("Loop: {}".format(produce_loop))
             total = 0
-            for idx in range(self.idx_start, self.obj_num):
+            for idx in range(self.idx_put_start, self.obj_num):
                 if self.duration <= (end - start).total_seconds():
                     break
                 logger.trace("Loop-{} producing {}/{}".format(produce_loop, idx, self.obj_num))

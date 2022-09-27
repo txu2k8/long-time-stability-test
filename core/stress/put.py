@@ -21,13 +21,13 @@ class PutObject(BaseWorker):
             client_types, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
             multipart=False, concurrent=1, prepare_concurrent=1,
-            idx_start=0, idx_width=1, duration=0, cover=False
+            idx_width=1, idx_put_start=0, idx_del_start=0, duration=0, cover=False
     ):
         super(PutObject, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
             local_path, bucket_prefix, bucket_num, depth, obj_prefix, obj_num,
             multipart, concurrent, prepare_concurrent,
-            idx_start, idx_width,
+            idx_width, idx_put_start, idx_del_start,
             duration, cover
         )
         # 准备源数据文件池 字典
@@ -56,12 +56,5 @@ class PutObject(BaseWorker):
 
 
 if __name__ == '__main__':
-    put = PutObject(
-        'mc', '127.0.0.1:9000', 'minioadmin', 'minioadmin', False, 'play',
-        'D:\\minio\\upload_data', 'bucket', 1, 2, '', 10,
-        3, False, 30
-    )
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(put.run())
-    loop.close()
+    pass
 
