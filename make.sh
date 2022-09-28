@@ -1,0 +1,1 @@
+pyinstaller -F -n lts_tool --clean .\main.py
