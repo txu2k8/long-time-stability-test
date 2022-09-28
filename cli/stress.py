@@ -17,11 +17,11 @@ import typer
 from config.models import ClientType, MultipartType
 from cli.log import init_logger
 from cli.main import app
-from core.stress.put import PutObject
-from core.stress.put_del import PutDeleteObject
-from core.stress.get import GetObject
-from core.stress.delete import DeleteObject
-from core.stress.list import ListObject
+from workflow.stress.put import PutObject
+from workflow.stress.put_del import PutDeleteObject
+from workflow.stress.get import GetObject
+from workflow.stress.delete import DeleteObject
+from workflow.stress.list import ListObject
 
 
 def init_print(case_id, desc, client_type, bucket_num, obj_num, concurrent, duration):

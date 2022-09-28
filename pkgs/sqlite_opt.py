@@ -65,7 +65,7 @@ class Sqlite3Operation(object, metaclass=Singleton):
 
         if sql is not None and sql != '':
             self.execute(sql)
-            self.logger.info('create tablle success')
+            self.logger.info('create tablle success: {}'.format(sql))
         else:
             self.logger.info('the [{}] is empty or equal None!'.format(sql))
 

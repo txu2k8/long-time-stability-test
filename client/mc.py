@@ -16,7 +16,7 @@ from loguru import logger
 import asyncio
 import subprocess
 
-from client.clientinterface import ClientInterface
+from client.client_interface import ClientInterface
 
 # --- OS constants
 POSIX = os.name == "posix"

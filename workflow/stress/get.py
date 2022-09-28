@@ -11,7 +11,7 @@ import os
 from loguru import logger
 
 from utils.util import get_md5_value
-from core.stress.base_worker import BaseWorker
+from workflow.stress.base_worker import BaseWorker
 
 
 class GetObject(BaseWorker):

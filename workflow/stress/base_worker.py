@@ -17,7 +17,7 @@ import arrow
 
 from utils.util import zfill
 from config.models import ClientType
-from client.clientinterface import ClientInterface
+from client.client_interface import ClientInterface
 from client.mc import MClient
 from client.s3cmd import S3CmdClient
 

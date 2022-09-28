@@ -7,7 +7,7 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
-from core.stress.base_worker import BaseWorker
+from workflow.stress.base_worker import BaseWorker
 
 
 class ListObject(BaseWorker):

@@ -12,9 +12,9 @@ import typer
 
 from cli.main import app
 from cli.log import init_logger
-from core.tool.get_objs_by_data import multi_get_objs_by_data
-from core.tool.rm_objs import multi_rm_objs_by_name, multi_rm_objs_by_bucket
-from core.tool.rm_trash_files import multi_rm_trash_files
+from workflow.tool.get_objs_by_data import multi_get_objs_by_data
+from workflow.tool.rm_objs import multi_rm_objs_by_name, multi_rm_objs_by_bucket
+from workflow.tool.rm_trash_files import multi_rm_trash_files
 
 
 default_size_list = ['0B', '16B', '1KB', '3KB', '4KB', '5KB', '64KB']
