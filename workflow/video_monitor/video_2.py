@@ -2,7 +2,7 @@
 # -*- coding:utf-8 _*-
 """
 @author:TXU
-@file:video_1
+@file:video_2
 @time:2022/09/19
 @email:tao.xu2008@outlook.com
 @description: 视频监控场景测试

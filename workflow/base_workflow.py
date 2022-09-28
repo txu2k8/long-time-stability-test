@@ -86,6 +86,7 @@ class BaseWorkflow(WorkflowInterface, ABC):
         self.idx_del_start = idx_del_start
         self.idx_main_start = self.obj_num + 1 if self.idx_put_start <= self.obj_num else self.idx_put_start  # main阶段idx起始
         self.idx_put_current = idx_put_start  # put操作完成的进度idx
+        self.depth = 1  # 默认使用对象目录深度=1，即不建子目录
 
         # 初始化数据库
         self.db_table_name = "obj_info"
@@ -141,17 +142,29 @@ class BaseWorkflow(WorkflowInterface, ABC):
         prefix = date_prefix + nested_prefix + obj_prefix
         return prefix
 
-    def obj_path_calc(self, idx, date_prefix='', depth=1):
+    def obj_path_calc(self, idx, date_prefix=''):
         """
         依据idx序号计算对象 path，实际为：<bucket_name>/{obj_path}
+        depth:子目录深度，depth=2开始创建子目录
         :param idx:
         :param date_prefix:按日期写不同文件夹
-        :param depth:子目录深度，depth=2开始创建子目录
         :return:
         """
-        obj_prefix = self._obj_prefix_calc(self.obj_prefix, depth, date_prefix)
+        obj_prefix = self._obj_prefix_calc(self.obj_prefix, self.depth, date_prefix)
         obj_path = obj_prefix + zfill(idx, width=self.idx_width)
         return obj_path
+
+    def bucket_obj_path_calc(self, idx):
+        """
+        基于对象idx计算该对象应该存储的桶和对象路径
+        :param idx:
+        :return:
+        """
+        # 计算对象应该存储的桶名称
+        bucket = self.bucket_name_calc(self.bucket_prefix, idx)
+        # 计算对象路径
+        obj_path = self.obj_path_calc(idx, date_prefix="")
+        return bucket, obj_path
 
     def set_core_loglevel(self, loglevel="debug"):
         """

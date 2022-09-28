@@ -2,7 +2,7 @@
 # -*- coding:utf-8 _*-
 """
 @author:TXU
-@file:video_1
+@file:base
 @time:2022/09/28
 @email:tao.xu2008@outlook.com
 @description: 视频监控场景测试 - 基类
@@ -11,14 +11,9 @@
     2、码流：4Mbps
     3、7*24h 写删均衡
 """
-import random
-import asyncio
-
-from loguru import logger
-
 from utils.util import get_local_files
 from config.models import ClientType
-from client.mc import MClient
+
 
 from workflow.base_workflow import BaseWorkflow
 
@@ -66,47 +61,3 @@ class BaseVideoMonitor(BaseWorkflow):
         date_prefix = current_date + '/'
         obj_path = self.obj_path_calc(idx, date_prefix)
         return bucket, obj_path, current_date
-
-    async def worker(self, client: MClient, idx_put, idx_del=-1):
-        """
-        上传指定对象
-        :param client:
-        :param idx_put:
-        :param idx_del:
-        :return:
-        """
-        bucket, obj_path, current_date = self.bucket_obj_path_calc(idx_put)
-        # 获取待上传的源文件
-        src_file = random.choice(self.file_list)
-        disable_multipart = self.disable_multipart_calc()
-        # 上传
-        await client.put_without_attr(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags)
-        # 写入结果到数据库
-        self.db_insert(str(idx_put), current_date, bucket, obj_path)
-
-        # 删除镀锡
-        if idx_del > 0:
-            bucket_del, obj_path_del, _ = self.bucket_obj_path_calc(idx_del)
-            await client.delete(bucket_del, obj_path_del)
-
-    async def producer_main(self, queue):
-        """
-        prepare阶段 produce queue队列
-        :param queue:
-        :return:
-        """
-        logger.info("Produce PREPARE bucket={}, concurrent={}, ".format(self.bucket_num, self.prepare_concurrent))
-        client = self.client_list[0]
-        idx_put = self.idx_main_start
-        idx_del = self.idx_del_start if self.idx_del_start > 0 else -1
-        while True:
-            logger.debug("put:{} , del:{}".format(idx_put, idx_del))
-            if self.idx_put_current >= self.obj_num:
-                await queue.put((client, idx_put, idx_del))  # 写+删
-                idx_del += 1
-            else:
-                await queue.put((client, idx_put, -1))  # 写
-            self.idx_put_current = idx_put
-            if idx_put % self.prepare_concurrent == 0:
-                await asyncio.sleep(1)  # 每秒生产 {prepare_concurrent} 个待处理项
-            idx_put += 1

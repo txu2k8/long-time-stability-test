@@ -11,38 +11,36 @@ import os
 from loguru import logger
 
 from utils.util import get_md5_value
-from workflow.stress.base_worker import BaseWorker
+from workflow.stress.base import BaseStress
 
 
-class GetObject(BaseWorker):
+class GetObject(BaseStress):
     """下载对象"""
 
     def __init__(
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
-            local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
-            multipart=False, concurrent=1, prepare_concurrent=1,
-            idx_width=1, idx_put_start=0, idx_del_start=0, duration=0, cover=False
+            bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, multipart=False, local_path="",
+            concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0,
+            depth=1, duration=0, cover=False,
     ):
         super(GetObject, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
-            local_path, bucket_prefix, bucket_num, depth, obj_prefix, obj_num,
-            multipart, concurrent, prepare_concurrent,
-            idx_width, idx_put_start, idx_del_start,
-            duration, cover
+            bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
+            concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start,
+            depth, duration, cover
         )
         pass
 
-    async def worker(self, client, bucket, idx):
+    async def worker(self, client, idx):
         """
         下载对象并比较MD5值
         :param client:
-        :param bucket:
         :param idx:
         :return:
         """
         # 准备
-        obj_path = self.obj_path_calc(idx)
+        bucket, obj_path = self.bucket_obj_path_calc(idx)
         local_file_path = os.path.join(self.local_path, '{}_{}'.format(bucket, obj_path.replace('/', '_')))
         disable_multipart = self.disable_multipart_calc()
         rc, expect_md5 = await client.get_obj_md5(bucket, obj_path)
