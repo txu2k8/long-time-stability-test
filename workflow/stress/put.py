@@ -8,7 +8,6 @@
 @description: 上传对象
 """
 import random
-import asyncio
 
 from workflow.stress.base import BaseStress
 from utils.util import get_local_files
