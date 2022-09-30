@@ -10,7 +10,7 @@
 from config.globals import *
 
 
-__version__ = "1.0.0"
+__version__ = "1.0.0 - 2022-09-30"
 
 __all__ = [
     "__version__",

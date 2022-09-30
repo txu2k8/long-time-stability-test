@@ -48,9 +48,9 @@ class VideoMonitor3(BaseVideoMonitor):
         src_file = random.choice(self.file_list)
         disable_multipart = self.disable_multipart_calc()
         # 上传
-        await client.put_without_attr(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags)
+        rc = await client.put_without_attr(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags)
         # 写入结果到数据库
-        self.db_insert(str(idx_put), current_date, bucket, obj_path)
+        self.db_insert(str(idx_put), current_date, bucket, obj_path, rc)
 
         # 删除镀锡
         if idx_del > 0:
