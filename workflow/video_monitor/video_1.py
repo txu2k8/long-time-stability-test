@@ -57,7 +57,7 @@ class VideoMonitor1(BaseVideoMonitor):
         disable_multipart = self.disable_multipart_calc()
         rc = await client.put_without_attr(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags)
         # 写入结果到数据库
-        self.db_insert(str(idx), current_date, bucket, obj_path, rc)
+        self.db_insert(str(idx), current_date, bucket, obj_path, src_file.md5, rc)
 
     async def worker_delete(self, client, idx):
         """
@@ -67,8 +67,9 @@ class VideoMonitor1(BaseVideoMonitor):
         :return:
         """
         bucket, obj_path, _ = self.bucket_obj_path_calc(idx)
-        await client.delete(bucket, obj_path)
-        self.db_delete(str(idx))
+        rc = await client.delete(bucket, obj_path)
+        if rc == 0:
+            self.db_delete(str(idx))
 
     async def producer_put(self, queue):
         """

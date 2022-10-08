@@ -50,12 +50,19 @@ class VideoMonitor3(BaseVideoMonitor):
         # 上传
         rc = await client.put_without_attr(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags)
         # 写入结果到数据库
-        self.db_insert(str(idx_put), current_date, bucket, obj_path, rc)
+        self.db_insert(str(idx_put), current_date, bucket, obj_path, src_file.md5, rc)
 
-        # 删除镀锡
+        # 删除对象
         if idx_del > 0:
             bucket_del, obj_path_del, _ = self.bucket_obj_path_calc(idx_del)
-            await client.delete(bucket_del, obj_path_del)
+            rc = await client.delete(bucket_del, obj_path_del)
+            if rc == 0:
+                self.db_delete(str(idx_del))
+
+        # 读取对象
+        # if idx_get > 0:
+        #     bucket_get, obj_path_get, _ = self.bucket_obj_path_calc(idx_get)
+        #     await client.get(bucket_get, obj_path_get, "/tmp/", disable_multipart)
 
     async def producer_main(self, queue):
         """
@@ -73,7 +80,7 @@ class VideoMonitor3(BaseVideoMonitor):
                 await queue.put((client, idx_put, idx_del))  # 写+删
                 idx_del += 1
             else:
-                await queue.put((client, idx_put, -1))  # 写
+                await queue.put((client, idx_put, -1))  # 仅写
             self.idx_put_current = idx_put
             if idx_put % self.prepare_concurrent == 0:
                 await asyncio.sleep(1)  # 每秒生产 {prepare_concurrent} 个待处理项
