@@ -10,6 +10,7 @@
 import os
 import json
 import re
+import datetime
 from abc import ABC
 
 from loguru import logger
@@ -58,19 +59,20 @@ class MClient(ClientInterface, ABC):
 
     async def _async_exec(self, args):
         cmd = self._args2cmd(args)
+        start = datetime.datetime.now()
         proc = await asyncio.create_subprocess_shell(
             cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE)
-        await asyncio.sleep(2)
         stdout, stderr = await proc.communicate()
-
+        end = datetime.datetime.now()
+        elapsed = (end - start).total_seconds()  # 耗时 x.y 秒
         rc = proc.returncode
         if stdout:
             logger.debug(stdout.decode().strip('\n'))
         if stderr:
             logger.error('Response({}):\n{}'.format(cmd, stderr.decode().strip('\n')))
-        return rc, stdout, stderr
+        return rc, elapsed, stdout, stderr
 
     def set_alias(self):
         args = "alias set {} {} {} {}".format(self.alias, self.endpoint, self.access_key, self.secret_key)
@@ -122,13 +124,13 @@ class MClient(ClientInterface, ABC):
         attr += "{}disable-multipart={}".format(';' if attr else '', disable_multipart)
         cp = 'cp --disable-multipart' if disable_multipart else 'cp'
         args = '{} --tags "{}" --attr "{}" {} {}/{}/{}'.format(cp, tags, attr, src_path, self.alias, bucket, dst_path)
-        rc, _, _ = await self._async_exec(args)
+        rc, elapsed, _, _ = await self._async_exec(args)
         if rc == 0:
             logger.success("上传成功！{} -> {}/{}".format(src_path, bucket, dst_path))
             logger.log("OBJ", "{}/{}".format(bucket, dst_path))
         else:
             logger.error("上传失败！{} -> {}/{}".format(src_path, bucket, dst_path))
-        return rc
+        return rc, elapsed
 
     async def put_without_attr(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
         """
@@ -143,13 +145,13 @@ class MClient(ClientInterface, ABC):
         tags += "{}disable-multipart={}".format('&' if tags else '', disable_multipart)
         cp = 'cp --disable-multipart' if disable_multipart else 'cp'
         args = '{} --tags "{}" {} {}/{}/{}'.format(cp, tags, src_path, self.alias, bucket, dst_path)
-        rc, _, _ = await self._async_exec(args)
+        rc, elapsed, _, _ = await self._async_exec(args)
         if rc == 0:
             logger.success("上传成功！{} -> {}/{}".format(src_path, bucket, dst_path))
             logger.log("OBJ", "{}/{}".format(bucket, dst_path))
         else:
             logger.error("上传失败！{} -> {}/{}".format(src_path, bucket, dst_path))
-        return rc
+        return rc, elapsed
 
     async def get(self, bucket, obj_path, local_path, disable_multipart=False):
         """
@@ -163,7 +165,7 @@ class MClient(ClientInterface, ABC):
         args = 'cp {}/{}/{} {}'.format(self.alias, bucket, obj_path, local_path)
         if disable_multipart:
             args += " --disable-multipart"
-        rc, _, _ = await self._async_exec(args)
+        rc, _, _, _ = await self._async_exec(args)
         if rc == 0:
             logger.success("下载成功！{}/{} -> {}".format(bucket, obj_path, local_path))
         else:
@@ -178,7 +180,7 @@ class MClient(ClientInterface, ABC):
         :return:
         """
         args = 'rm {}/{}/{}'.format(self.alias, bucket, dst_path)
-        rc, _, _ = await self._async_exec(args)
+        rc, _, _, _ = await self._async_exec(args)
         if rc == 0:
             logger.success("删除成功！{}/{}".format(bucket, dst_path))
             logger.log("OBJ", "{}/{}".format(bucket, dst_path))
@@ -194,7 +196,7 @@ class MClient(ClientInterface, ABC):
         :return:
         """
         args = 'ls {}/{}/{}'.format(self.alias, bucket, obj_path)
-        rc, _, _ = await self._async_exec(args)
+        rc, _, _, _ = await self._async_exec(args)
         if rc == 0:
             logger.success("列表对象成功！{}/{}".format(bucket, obj_path))
         else:
@@ -210,7 +212,7 @@ class MClient(ClientInterface, ABC):
         """
         tag_dict = {}
         args = 'tag list {}/{}/{} --json'.format(self.alias, bucket, obj_path)
-        rc, stdout, stderr = await self._async_exec(args)
+        rc, _, stdout, stderr = await self._async_exec(args)
         if rc == 0:
             logger.success("获取对象标签成功！{}/{}".format(bucket, obj_path))
             json_output = json.loads(stdout.decode().strip('\n'))
@@ -229,7 +231,7 @@ class MClient(ClientInterface, ABC):
         """
         md5 = ''
         args = 'tag list {}/{}/{} --json'.format(self.alias, bucket, obj_path)
-        rc, stdout, stderr = await self._async_exec(args)
+        rc, _, stdout, stderr = await self._async_exec(args)
         if rc == 0:
             logger.success("获取对象标签成功！{}/{}".format(bucket, obj_path))
             json_output = json.loads(stdout.decode().strip('\n'))
@@ -250,7 +252,7 @@ class MClient(ClientInterface, ABC):
         """
         md5 = ''
         args = 'stat {}/{}/{} --json'.format(self.alias, bucket, obj_path)
-        rc, stdout, stderr = await self._async_exec(args)
+        rc, _, stdout, stderr = await self._async_exec(args)
         if rc == 0:
             logger.success("获取对象stat信息成功！{}/{}".format(bucket, obj_path))
             json_output = json.loads(stdout.decode().strip('\n'))

@@ -202,15 +202,16 @@ class BaseWorkflow(WorkflowInterface, ABC):
                                                       `bucket` varchar(100) NOT NULL,
                                                       `obj` varchar(500) NOT NULL,
                                                       `md5` varchar(100) DEFAULT NULL,
-                                                      `rc` int(11) DEFAULT NULL
+                                                      `rc` int(11) DEFAULT NULL,
+                                                      `elapsed` int(11) DEFAULT NULL
                                                     )
                                                     '''.format(self.db_table_name)
         self.sqlite3_opt.execute('DROP TABLE IF EXISTS {}'.format(self.db_table_name))
         self.sqlite3_opt.create_table(sql_create_table)
 
-    def db_insert(self, str_idx, str_date, bucket, obj_path, md5='', rc=0):
-        insert_sql = '''INSERT INTO {} ( idx, date, bucket, obj, md5, rc ) values (?, ?, ?, ?, ?, ?)'''.format(self.db_table_name)
-        data = [(str_idx, str_date, bucket, obj_path, md5, rc)]
+    def db_insert(self, str_idx, str_date, bucket, obj_path, md5='', rc=0, elapsed=0):
+        insert_sql = '''INSERT INTO {} ( idx, date, bucket, obj, md5, rc, elapsed ) values (?, ?, ?, ?, ?, ?, ?)'''.format(self.db_table_name)
+        data = [(str_idx, str_date, bucket, obj_path, md5, rc, elapsed)]
         self.sqlite3_opt.insert_update_delete(insert_sql, data)
 
     def db_delete(self, str_idx):
