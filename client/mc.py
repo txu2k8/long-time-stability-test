@@ -126,10 +126,10 @@ class MClient(ClientInterface, ABC):
         args = '{} --tags "{}" --attr "{}" {} {}/{}/{}'.format(cp, tags, attr, src_path, self.alias, bucket, dst_path)
         rc, elapsed, _, _ = await self._async_exec(args)
         if rc == 0:
-            logger.success("上传成功！{} -> {}/{}".format(src_path, bucket, dst_path))
+            logger.success("上传成功！{} -> {}/{}，耗时：{}".format(src_path, bucket, dst_path, elapsed))
             logger.log("OBJ", "{}/{}".format(bucket, dst_path))
         else:
-            logger.error("上传失败！{} -> {}/{}".format(src_path, bucket, dst_path))
+            logger.error("上传失败！{} -> {}/{}，耗时：{}".format(src_path, bucket, dst_path, elapsed))
         return rc, elapsed
 
     async def put_without_attr(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
@@ -147,10 +147,10 @@ class MClient(ClientInterface, ABC):
         args = '{} --tags "{}" {} {}/{}/{}'.format(cp, tags, src_path, self.alias, bucket, dst_path)
         rc, elapsed, _, _ = await self._async_exec(args)
         if rc == 0:
-            logger.success("上传成功！{} -> {}/{}".format(src_path, bucket, dst_path))
+            logger.success("上传成功！{} -> {}/{}，耗时：{}".format(src_path, bucket, dst_path, elapsed))
             logger.log("OBJ", "{}/{}".format(bucket, dst_path))
         else:
-            logger.error("上传失败！{} -> {}/{}".format(src_path, bucket, dst_path))
+            logger.error("上传失败！{} -> {}/{}，耗时：{}".format(src_path, bucket, dst_path, elapsed))
         return rc, elapsed
 
     async def get(self, bucket, obj_path, local_path, disable_multipart=False):

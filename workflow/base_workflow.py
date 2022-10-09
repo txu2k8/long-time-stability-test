@@ -202,17 +202,27 @@ class BaseWorkflow(WorkflowInterface, ABC):
                                                       `bucket` varchar(100) NOT NULL,
                                                       `obj` varchar(500) NOT NULL,
                                                       `md5` varchar(100) DEFAULT NULL,
-                                                      `rc` int(11) DEFAULT NULL,
-                                                      `elapsed` int(11) DEFAULT NULL
+                                                      `put_rc` int(11) DEFAULT NULL,
+                                                      `put_elapsed` int(11) DEFAULT NULL,
+                                                      `del_rc` int(11) DEFAULT NULL,
+                                                      `is_delete` BOOL DEFAULT FALSE,
+                                                      `queue_size` int(11) DEFAULT NULL
                                                     )
                                                     '''.format(self.db_table_name)
         self.sqlite3_opt.execute('DROP TABLE IF EXISTS {}'.format(self.db_table_name))
         self.sqlite3_opt.create_table(sql_create_table)
 
-    def db_insert(self, str_idx, str_date, bucket, obj_path, md5='', rc=0, elapsed=0):
-        insert_sql = '''INSERT INTO {} ( idx, date, bucket, obj, md5, rc, elapsed ) values (?, ?, ?, ?, ?, ?, ?)'''.format(self.db_table_name)
-        data = [(str_idx, str_date, bucket, obj_path, md5, rc, elapsed)]
+    def db_insert(self, str_idx, str_date, bucket, obj_path, md5='', put_rc=0, put_elapsed=0, queue_size=0):
+        insert_sql = '''
+        INSERT INTO {} ( idx, date, bucket, obj, md5, put_rc, put_elapsed, queue_size ) values (?, ?, ?, ?, ?, ?, ?, ?)
+        '''.format(self.db_table_name)
+        data = [(str_idx, str_date, bucket, obj_path, md5, put_rc, put_elapsed, queue_size)]
         self.sqlite3_opt.insert_update_delete(insert_sql, data)
+
+    def db_update_delete_flag(self, str_idx):
+        update_sql = '''UPDATE {} SET is_delete = true WHERE idx = ? '''.format(self.db_table_name)
+        data = [(str_idx,)]
+        self.sqlite3_opt.insert_update_delete(update_sql, data)
 
     def db_delete(self, str_idx):
         delete_sql = '''DELETE FROM {} WHERE idx = ?'''.format(self.db_table_name)

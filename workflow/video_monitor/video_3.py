@@ -35,14 +35,16 @@ class VideoMonitor3(BaseVideoMonitor):
         )
         pass
 
-    async def worker(self, client: MClient, idx_put, idx_del=-1):
+    async def worker(self, client: MClient, idx_put, idx_del=-1, qsize=0):
         """
         上传指定对象
         :param client:
         :param idx_put:
         :param idx_del:
+        :param qsize: queue队列深度
         :return:
         """
+        logger.info("当前队列深度：{}".format(qsize))
         bucket, obj_path, current_date = self.bucket_obj_path_calc(idx_put)
         # 获取待上传的源文件
         src_file = random.choice(self.file_list)
@@ -50,19 +52,14 @@ class VideoMonitor3(BaseVideoMonitor):
         # 上传
         rc, elapsed = await client.put_without_attr(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags)
         # 写入结果到数据库
-        self.db_insert(str(idx_put), current_date, bucket, obj_path, src_file.md5, rc, elapsed)
+        self.db_insert(str(idx_put), current_date, bucket, obj_path, src_file.md5, rc, elapsed, qsize)
 
         # 删除对象
         if idx_del > 0:
             bucket_del, obj_path_del, _ = self.bucket_obj_path_calc(idx_del)
             rc = await client.delete(bucket_del, obj_path_del)
             if rc == 0:
-                self.db_delete(str(idx_del))
-
-        # 读取对象
-        # if idx_get > 0:
-        #     bucket_get, obj_path_get, _ = self.bucket_obj_path_calc(idx_get)
-        #     await client.get(bucket_get, obj_path_get, "/tmp/", disable_multipart)
+                self.db_update_delete_flag(str(idx_del))
 
     async def producer_main(self, queue):
         """
@@ -85,6 +82,18 @@ class VideoMonitor3(BaseVideoMonitor):
             if idx_put % self.prepare_concurrent == 0:
                 await asyncio.sleep(1)  # 每秒生产 {prepare_concurrent} 个待处理项
             idx_put += 1
+
+    async def consumer(self, queue):
+        """
+        consume queue队列，指定队列中全部被消费
+        :param queue:
+        :return:
+        """
+        while True:
+            item = await queue.get()
+            qsize = queue.qsize()
+            await self.worker(*item, qsize=qsize)
+            queue.task_done()
 
 
 if __name__ == '__main__':
