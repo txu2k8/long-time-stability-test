@@ -22,13 +22,13 @@ class BaseStress(BaseWorkflow):
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, multipart=False, local_path="",
-            concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0,
+            main_concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0,
             depth=1, duration=0, cover=False,
     ):
         super(BaseStress, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
-            concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start
+            main_concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start
         )
         self.depth = depth
         self.duration = duration
@@ -68,13 +68,13 @@ class BaseStress(BaseWorkflow):
         :return:
         """
         # 生产待处理的queue列表
-        logger.info("PUT obj={}, bucket={}, concurrent={}, ".format(self.obj_num, self.bucket_num, self.concurrent))
+        logger.info("PUT obj={}, bucket={}, concurrent={}, ".format(self.obj_num, self.bucket_num, self.main_concurrent))
         if self.duration <= 0:
             for x in range(self.idx_put_start, self.obj_num):
                 logger.trace("producing {}/{}".format(x, self.obj_num))
                 client = random.choice(self.client_list)  # 随机选择客户端
                 await queue.put((client, x))
-                if x % self.concurrent == 0:
+                if x % self.main_concurrent == 0:
                     await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
                 x += 1
             return
@@ -93,7 +93,7 @@ class BaseStress(BaseWorkflow):
                 logger.trace("Loop-{} producing {}/{}".format(produce_loop, idx, self.obj_num))
                 client = random.choice(self.client_list)  # 随机选择客户端
                 await queue.put((client, idx))
-                if idx % self.concurrent == 0:
+                if idx % self.main_concurrent == 0:
                     await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
                 idx += 1
                 end = datetime.datetime.now()
@@ -121,12 +121,12 @@ class BaseStress(BaseWorkflow):
         :return:
         """
         logger.log("STAGE", "main->执行测试，obj={}, bucket={}, concurrent={}".format(
-            self.obj_num, self.bucket_num, self.concurrent
+            self.obj_num, self.bucket_num, self.main_concurrent
         ))
 
         queue = asyncio.Queue()
         # 创建100倍 concurrent 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.concurrent * 2000)]
+        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.main_concurrent * 2000)]
         await self.producer(queue)
         await queue.join()
         for c in consumers:

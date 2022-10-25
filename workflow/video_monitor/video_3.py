@@ -13,6 +13,7 @@
 """
 import random
 import asyncio
+import datetime
 from loguru import logger
 
 from client.mc import MClient
@@ -25,13 +26,13 @@ class VideoMonitor3(BaseVideoMonitor):
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, multipart=False, local_path="",
-            concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0,
+            main_concurrent=1, prepare_concurrent=1, max_workers=1, idx_width=1, idx_put_start=0, idx_del_start=0,
             obj_num_per_day=1,
     ):
         super(VideoMonitor3, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
-            concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start, obj_num_per_day
+            main_concurrent, prepare_concurrent, max_workers, idx_width, idx_put_start, idx_del_start, obj_num_per_day
         )
         pass
 
@@ -44,7 +45,7 @@ class VideoMonitor3(BaseVideoMonitor):
         :param qsize: queue队列深度
         :return:
         """
-        logger.info("当前队列深度：{}".format(qsize))
+        logger.debug("当前队列深度：{}".format(qsize))
         bucket, obj_path, current_date = self.bucket_obj_path_calc(idx_put)
         # 获取待上传的源文件
         src_file = random.choice(self.file_list)
@@ -52,14 +53,31 @@ class VideoMonitor3(BaseVideoMonitor):
         # 上传
         rc, elapsed = await client.put_without_attr(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags)
         # 写入结果到数据库
-        self.db_insert(str(idx_put), current_date, bucket, obj_path, src_file.md5, rc, elapsed, qsize)
+        # self.db_obj_insert(str(idx_put), current_date, bucket, obj_path, src_file.md5, rc, elapsed, qsize)
+
+        self.elapsed_sum += elapsed
+        self.queue_size_sum += qsize
+        self.sum_count += 1
+        datetime_now = datetime.datetime.now()
+        if datetime_now.second == 0:
+            # 每分钟统计一次平均值
+            ops = self.sum_count / (datetime_now - self.start_datetime).seconds
+            elapsed_avg = self.elapsed_sum / self.sum_count
+            queue_size_avg = self.queue_size_sum / self.sum_count
+            logger.info("OPS={}, elapsed_avg={}, queue_size_avg={}".format(ops, elapsed_avg, queue_size_avg))
+            self.db_stat_insert(ops, elapsed_avg, queue_size_avg)
+            self.start_datetime = datetime_now
+            self.elapsed_sum = 0
+            self.queue_size_sum = 0
+            self.sum_count = 0
 
         # 删除对象
         if idx_del > 0:
             bucket_del, obj_path_del, _ = self.bucket_obj_path_calc(idx_del)
-            rc = await client.delete(bucket_del, obj_path_del)
-            if rc == 0:
-                self.db_update_delete_flag(str(idx_del))
+            await client.delete(bucket_del, obj_path_del)
+            # 更新删除结果到数据库表
+            # if rc == 0:
+            #     self.db_obj_update_delete_flag(str(idx_del))
 
     async def producer_main(self, queue):
         """
@@ -67,7 +85,7 @@ class VideoMonitor3(BaseVideoMonitor):
         :param queue:
         :return:
         """
-        logger.info("Produce PREPARE bucket={}, concurrent={}, ".format(self.bucket_num, self.prepare_concurrent))
+        logger.info("Produce Main PUT/DEL bucket={}, concurrent={}, ".format(self.bucket_num, self.main_concurrent))
         client = self.client_list[0]
         idx_put = self.idx_main_start
         idx_del = self.idx_del_start if self.idx_del_start > 0 else -1
@@ -79,8 +97,8 @@ class VideoMonitor3(BaseVideoMonitor):
             else:
                 await queue.put((client, idx_put, -1))  # 仅写
             self.idx_put_current = idx_put
-            if idx_put % self.prepare_concurrent == 0:
-                await asyncio.sleep(1)  # 每秒生产 {prepare_concurrent} 个待处理项
+            if idx_put % self.main_concurrent == 0:
+                await asyncio.sleep(1)  # 每秒生产 {main_concurrent} 个待处理项
             idx_put += 1
 
     async def consumer(self, queue):

@@ -34,13 +34,13 @@ class VideoMonitor1(BaseVideoMonitor):
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, multipart=False, local_path="",
-            concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0,
+            main_concurrent=1, prepare_concurrent=1, max_workers=1, idx_width=1, idx_put_start=0, idx_del_start=0,
             obj_num_per_day=1,
     ):
         super(VideoMonitor1, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
-            concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start, obj_num_per_day
+            main_concurrent, prepare_concurrent, max_workers, idx_width, idx_put_start, idx_del_start, obj_num_per_day
         )
         pass
 
@@ -57,7 +57,7 @@ class VideoMonitor1(BaseVideoMonitor):
         disable_multipart = self.disable_multipart_calc()
         rc, elapsed = await client.put_without_attr(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags)
         # 写入结果到数据库
-        self.db_insert(str(idx), current_date, bucket, obj_path, src_file.md5, rc, elapsed)
+        self.db_obj_insert(str(idx), current_date, bucket, obj_path, src_file.md5, rc, elapsed)
 
     async def worker_delete(self, client, idx):
         """
@@ -69,7 +69,7 @@ class VideoMonitor1(BaseVideoMonitor):
         bucket, obj_path, _ = self.bucket_obj_path_calc(idx)
         rc = await client.delete(bucket, obj_path)
         if rc == 0:
-            self.db_delete(str(idx))
+            self.db_obj_delete(str(idx))
 
     async def producer_put(self, queue):
         """
@@ -78,13 +78,13 @@ class VideoMonitor1(BaseVideoMonitor):
         :param queue:
         :return:
         """
-        logger.info("Produce PUT bucket={}, concurrent={}, ".format(self.bucket_num, self.concurrent))
+        logger.info("Produce PUT bucket={}, concurrent={}, ".format(self.bucket_num, self.main_concurrent))
         client = self.client_list[0]
         idx = self.idx_main_start
         while True:
             await queue.put((client, idx))
             self.idx_put_current = idx
-            if idx % self.concurrent == 0:
+            if idx % self.main_concurrent == 0:
                 await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
             idx += 1
 
@@ -95,14 +95,14 @@ class VideoMonitor1(BaseVideoMonitor):
         :param queue:
         :return:
         """
-        logger.info("Produce DELETE bucket={}, concurrent={}, ".format(self.bucket_num, self.concurrent))
+        logger.info("Produce DELETE bucket={}, concurrent={}, ".format(self.bucket_num, self.main_concurrent))
         client = self.client_list[0]
         idx_del = self.idx_del_start if self.idx_del_start > 0 else -1
         while True:
             logger.debug("当前 put_idx={}".format(self.idx_put_current))
             if self.idx_put_current > self.obj_num:  # 预置数据完成
                 await queue.put((client, idx_del))
-                if idx_del % self.concurrent == 0:
+                if idx_del % self.main_concurrent == 0:
                     await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
                 idx_del += 1
             else:
@@ -138,15 +138,15 @@ class VideoMonitor1(BaseVideoMonitor):
 
     async def stage_main(self):
         logger.log("STAGE", "main->写删均衡测试，put_obj_idx_start={}, bucket={}, concurrent={}".format(
-            self.idx_main_start, self.bucket_num, self.concurrent
+            self.idx_main_start, self.bucket_num, self.main_concurrent
         ))
 
         queue_put = asyncio.Queue()
         queue_delete = asyncio.Queue()
         # 创建100倍 concurrent 数量的consumer
-        consumers_put = [asyncio.ensure_future(self.consumer_put(queue_put)) for _ in range(self.concurrent * 2000)]
+        consumers_put = [asyncio.ensure_future(self.consumer_put(queue_put)) for _ in range(self.main_concurrent * 2000)]
         consumers_del = [asyncio.ensure_future(self.consumer_delete(queue_delete)) for _ in
-                         range(self.concurrent * 2000)]
+                         range(self.main_concurrent * 2000)]
 
         await self.producer(queue_put, queue_delete)
         await queue_put.join()

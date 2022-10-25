@@ -63,7 +63,7 @@ class BaseWorkflow(WorkflowInterface, ABC):
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num=1, obj_prefix='data', obj_num=10, multipart=False, local_path="",
-            concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=1, idx_del_start=1
+            main_concurrent=1, prepare_concurrent=1, max_workers=1, idx_width=1, idx_put_start=1, idx_del_start=1
     ):
         self.client_types = client_types
         self.endpoint = endpoint
@@ -79,8 +79,10 @@ class BaseWorkflow(WorkflowInterface, ABC):
         self.multipart = multipart
         self.local_path = local_path
 
-        self.concurrent = concurrent
+        self.main_concurrent = main_concurrent
         self.prepare_concurrent = prepare_concurrent
+        self.max_workers = max_workers if max_workers > main_concurrent else main_concurrent
+
         self.idx_width = idx_width
         self.idx_put_start = idx_put_start
         self.idx_del_start = idx_del_start
@@ -88,8 +90,15 @@ class BaseWorkflow(WorkflowInterface, ABC):
         self.idx_put_current = idx_put_start  # put操作完成的进度idx
         self.depth = 1  # 默认使用对象目录深度=1，即不建子目录
 
+        # 统计信息
+        self.start_datetime = datetime.datetime.now()
+        self.sum_count = 0
+        self.elapsed_sum = 0
+        self.queue_size_sum = 0
+
         # 初始化数据库
-        self.db_table_name = "obj_info"
+        self.db_obj_table_name = "obj_info"
+        self.db_stat_table_name = "stat_info"
         self.sqlite3_opt = Sqlite3Operation(db_path=DB_SQLITE3, show=False)
 
         # 初始化客户端
@@ -194,8 +203,8 @@ class BaseWorkflow(WorkflowInterface, ABC):
         初始化数据库：建表
         :return:
         """
-        logger.log("STAGE", "init->初始化数据库、建表，table={}".format(self.db_table_name))
-        sql_create_table = '''CREATE TABLE IF NOT EXISTS `{}` (
+        logger.log("STAGE", "init->初始化对象数据表，table={}".format(self.db_obj_table_name))
+        sql_create_obj_table = '''CREATE TABLE IF NOT EXISTS `{}` (
                                                       `id` INTEGER PRIMARY KEY,
                                                       `idx` varchar(20) NOT NULL,
                                                       `date` varchar(20) NOT NULL,
@@ -208,26 +217,44 @@ class BaseWorkflow(WorkflowInterface, ABC):
                                                       `is_delete` BOOL DEFAULT FALSE,
                                                       `queue_size` int(11) DEFAULT NULL
                                                     )
-                                                    '''.format(self.db_table_name)
-        self.sqlite3_opt.execute('DROP TABLE IF EXISTS {}'.format(self.db_table_name))
-        self.sqlite3_opt.create_table(sql_create_table)
+                                                    '''.format(self.db_obj_table_name)
+        self.sqlite3_opt.create_table(sql_create_obj_table)
 
-    def db_insert(self, str_idx, str_date, bucket, obj_path, md5='', put_rc=0, put_elapsed=0, queue_size=0):
+        logger.log("STAGE", "init->初始化统计数据表，table={}".format(self.db_stat_table_name))
+        sql_create_stat_table = '''CREATE TABLE IF NOT EXISTS `{}` (
+                                                              `id` INTEGER PRIMARY KEY,
+                                                              `ops` int(11) DEFAULT NULL,
+                                                              `elapsed_avg` int(11) DEFAULT NULL,
+                                                              `queue_size_avg` int(11) DEFAULT NULL,
+                                                              `datetime` DATETIME
+                                                            )
+                                                            '''.format(self.db_stat_table_name)
+        self.sqlite3_opt.create_table(sql_create_stat_table)
+
+    def db_obj_insert(self, str_idx, str_date, bucket, obj_path, md5='', put_rc=0, put_elapsed=0, queue_size=0):
         insert_sql = '''
         INSERT INTO {} ( idx, date, bucket, obj, md5, put_rc, put_elapsed, queue_size ) values (?, ?, ?, ?, ?, ?, ?, ?)
-        '''.format(self.db_table_name)
+        '''.format(self.db_obj_table_name)
         data = [(str_idx, str_date, bucket, obj_path, md5, put_rc, put_elapsed, queue_size)]
         self.sqlite3_opt.insert_update_delete(insert_sql, data)
 
-    def db_update_delete_flag(self, str_idx):
-        update_sql = '''UPDATE {} SET is_delete = true WHERE idx = ? '''.format(self.db_table_name)
+    def db_obj_update_delete_flag(self, str_idx):
+        update_sql = '''UPDATE {} SET is_delete = true WHERE idx = ? '''.format(self.db_obj_table_name)
         data = [(str_idx,)]
         self.sqlite3_opt.insert_update_delete(update_sql, data)
 
-    def db_delete(self, str_idx):
-        delete_sql = '''DELETE FROM {} WHERE idx = ?'''.format(self.db_table_name)
+    def db_obj_delete(self, str_idx):
+        delete_sql = '''DELETE FROM {} WHERE idx = ?'''.format(self.db_obj_table_name)
         data = [(str_idx,)]
         self.sqlite3_opt.insert_update_delete(delete_sql, data)
+
+    def db_stat_insert(self, ops, elapsed_avg, queue_size_avg):
+        insert_sql = '''
+                INSERT INTO {} ( ops, elapsed_avg, queue_size_avg, datetime ) values (?, ?, ?, ?)
+                '''.format(self.db_stat_table_name)
+        date_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        data = [(ops, elapsed_avg, queue_size_avg, date_time)]
+        self.sqlite3_opt.insert_update_delete(insert_sql, data)
 
     async def worker(self, *args, **kwargs):
         """
@@ -260,14 +287,14 @@ class BaseWorkflow(WorkflowInterface, ABC):
         :param queue:
         :return:
         """
-        logger.info("Produce PREPARE bucket={}, concurrent={}, ".format(self.bucket_num, self.prepare_concurrent))
+        logger.info("Produce Main PUT/DEL bucket={}, concurrent={}, ".format(self.bucket_num, self.main_concurrent))
         client = self.client_list[0]
         idx = self.idx_put_start
         while idx <= self.obj_num:
             await queue.put((client, idx))
             self.idx_put_current = idx
-            if idx % self.prepare_concurrent == 0:
-                await asyncio.sleep(1)  # 每秒生产 {prepare_concurrent} 个待处理项
+            if idx % self.main_concurrent == 0:
+                await asyncio.sleep(1)  # 每秒生产 {main_concurrent} 个待处理项
             idx += 1
 
     async def consumer(self, queue):
@@ -312,7 +339,7 @@ class BaseWorkflow(WorkflowInterface, ABC):
         ))
         queue = asyncio.Queue()
         # 创建100倍 concurrent 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.concurrent * 2000)]
+        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.main_concurrent * 2000)]
 
         await self.producer_prepare(queue)
         await queue.join()
@@ -327,12 +354,12 @@ class BaseWorkflow(WorkflowInterface, ABC):
         :return:
         """
         logger.log("STAGE", "main->写删均衡测试，put_obj_idx_start={}, bucket={}, concurrent={}".format(
-            self.idx_main_start, self.bucket_num, self.concurrent
+            self.idx_main_start, self.bucket_num, self.main_concurrent
         ))
 
         queue = asyncio.Queue()
-        # 创建100倍 concurrent 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.concurrent * 4000)]
+        # 创建 max_workers 数量的consumer
+        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.max_workers)]
 
         await self.producer_main(queue)
         await queue.join()

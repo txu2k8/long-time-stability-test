@@ -30,20 +30,20 @@ class BaseVideoMonitor(BaseWorkflow):
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, multipart=False, local_path="",
-            concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0,
+            main_concurrent=1, prepare_concurrent=1, max_workers=1, idx_width=1, idx_put_start=0, idx_del_start=0,
             obj_num_per_day=1,
     ):
         super(BaseVideoMonitor, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
-            concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start
+            main_concurrent, prepare_concurrent, max_workers, idx_width, idx_put_start, idx_del_start
         )
         self.obj_num_per_day = obj_num_per_day
 
         # 准备源数据文件池 字典
         self.file_list = get_local_files(local_path)
         # 写入起始日期
-        self.start_date = "2022-09-20"
+        self.start_date = "2022-01-01"
         # 初始化客户端
         self.client = self.clients_info[ClientType.MC.value]
 

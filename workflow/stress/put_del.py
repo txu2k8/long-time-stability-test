@@ -19,13 +19,13 @@ class PutDeleteObject(BaseStress):
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, multipart=False, local_path="",
-            concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0,
+            main_concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0,
             depth=1, duration=0, cover=False,
     ):
         super(PutDeleteObject, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
-            concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start,
+            main_concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start,
             depth, duration, cover
         )
         # 准备源数据文件池 字典

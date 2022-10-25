@@ -47,8 +47,9 @@ def video_monitor_1(
         obj_num_pd: int = typer.Option(10, min=1, help="每天预置对象数，实际均分到每个桶里"),
         multipart: MultipartType = typer.Option(MultipartType.enable.value, help="多段上传"),
         local_path: str = typer.Option(..., help="指定源文件路径，随机上传文件"),
-        concurrent: int = typer.Option(1, min=1, help="每秒并行数"),
+        main_concurrent: int = typer.Option(1, min=1, help="main阶段每秒并行数"),
         prepare_concurrent: int = typer.Option(1, min=1, help="预置数据时每秒并行数"),
+        max_workers: int = typer.Option(1, min=1, help="main阶段最大worker数"),
         idx_width: int = typer.Option(11, min=1, help="对象序号长度，3=>001"),
         idx_put_start: int = typer.Option(1, min=1, help="上传对象序号起始值"),
         idx_del_start: int = typer.Option(1, min=1, help="删除对象序号起始值"),
@@ -58,13 +59,13 @@ def video_monitor_1(
 ):
     client_types = [ClientType.MC]
     init_logger(prefix='video_monitor_1', case_id=case_id, trace=trace)
-    init_print(case_id, desc, client_types, bucket_num, concurrent)
+    init_print(case_id, desc, client_types, bucket_num, main_concurrent)
 
     # 并行执行 - 上传
     vm_obj = VideoMonitor1(
         client_types, endpoint, access_key, secret_key, tls, alias,
         bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
-        concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start,
+        main_concurrent, prepare_concurrent, max_workers, idx_width, idx_put_start, idx_del_start,
         obj_num_pd
     )
     vm_obj.run()
@@ -84,8 +85,9 @@ def video_monitor_2(
         obj_num_pd: int = typer.Option(10, min=1, help="每天预置对象数，实际均分到每个桶里"),
         multipart: MultipartType = typer.Option(MultipartType.enable.value, help="多段上传"),
         local_path: str = typer.Option(..., help="指定源文件路径，随机上传文件"),
-        concurrent: int = typer.Option(1, min=1, help="每秒并行数"),
+        main_concurrent: int = typer.Option(1, min=1, help="main阶段每秒并行数"),
         prepare_concurrent: int = typer.Option(1, min=1, help="预置数据时每秒并行数"),
+        max_workers: int = typer.Option(1, min=1, help="main阶段最大worker数"),
         idx_width: int = typer.Option(11, min=1, help="对象序号长度，3=>001"),
         idx_put_start: int = typer.Option(1, min=1, help="上传对象序号起始值"),
         idx_del_start: int = typer.Option(1, min=1, help="删除对象序号起始值"),
@@ -95,13 +97,13 @@ def video_monitor_2(
 ):
     client_types = [ClientType.MC]
     init_logger(prefix='video_monitor_2', case_id=case_id, trace=trace)
-    init_print(case_id, desc, client_types, bucket_num, concurrent)
+    init_print(case_id, desc, client_types, bucket_num, main_concurrent)
 
     # 并行执行 - 上传
     vm_obj = VideoMonitor2(
         client_types, endpoint, access_key, secret_key, tls, alias,
         bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
-        concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start,
+        main_concurrent, prepare_concurrent, max_workers, idx_width, idx_put_start, idx_del_start,
         obj_num_pd
     )
     vm_obj.run()
@@ -121,8 +123,9 @@ def video_monitor_3(
         obj_num_pd: int = typer.Option(10, min=1, help="每天预置对象数，实际均分到每个桶里"),
         multipart: MultipartType = typer.Option(MultipartType.enable.value, help="多段上传"),
         local_path: str = typer.Option(..., help="指定源文件路径，随机上传文件"),
-        concurrent: int = typer.Option(1, min=1, help="每秒并行数"),
+        main_concurrent: int = typer.Option(1, min=1, help="main阶段每秒并行数"),
         prepare_concurrent: int = typer.Option(1, min=1, help="预置数据时每秒并行数"),
+        max_workers: int = typer.Option(1, min=1, help="main阶段最大worker数"),
         idx_width: int = typer.Option(11, min=1, help="对象序号长度，3=>001"),
         idx_put_start: int = typer.Option(1, min=1, help="上传对象序号起始值"),
         idx_del_start: int = typer.Option(1, min=1, help="删除对象序号起始值"),
@@ -132,13 +135,13 @@ def video_monitor_3(
 ):
     client_types = [ClientType.MC]
     init_logger(prefix='video_monitor_0', case_id=case_id, trace=trace)
-    init_print(case_id, desc, client_types, bucket_num, concurrent)
+    init_print(case_id, desc, client_types, bucket_num, main_concurrent)
 
     # 并行执行 - 上传
     vm_obj = VideoMonitor3(
         client_types, endpoint, access_key, secret_key, tls, alias,
         bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
-        concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start,
+        main_concurrent, prepare_concurrent, max_workers, idx_width, idx_put_start, idx_del_start,
         obj_num_pd
     )
     vm_obj.run()
