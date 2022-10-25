@@ -13,7 +13,6 @@
 """
 import random
 import asyncio
-import datetime
 from loguru import logger
 
 from client.mc import MClient
@@ -21,7 +20,7 @@ from workflow.video_monitor.base import BaseVideoMonitor
 
 
 class VideoMonitor3(BaseVideoMonitor):
-    """视频监控场景测试 - 2，写删不同协程中并行处理，多对象并行处理（不读取数据库）"""
+    """视频监控场景测试 - 3，写删不同协程中并行处理，多对象并行处理（不读取数据库）"""
     def __init__(
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
@@ -52,24 +51,12 @@ class VideoMonitor3(BaseVideoMonitor):
         disable_multipart = self.disable_multipart_calc()
         # 上传
         rc, elapsed = await client.put_without_attr(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags)
+
         # 写入结果到数据库
         # self.db_obj_insert(str(idx_put), current_date, bucket, obj_path, src_file.md5, rc, elapsed, qsize)
 
-        self.elapsed_sum += elapsed
-        self.queue_size_sum += qsize
-        self.sum_count += 1
-        datetime_now = datetime.datetime.now()
-        if datetime_now.second == 0:
-            # 每分钟统计一次平均值
-            ops = self.sum_count / (datetime_now - self.start_datetime).seconds
-            elapsed_avg = self.elapsed_sum / self.sum_count
-            queue_size_avg = self.queue_size_sum / self.sum_count
-            logger.info("OPS={}, elapsed_avg={}, queue_size_avg={}".format(ops, elapsed_avg, queue_size_avg))
-            self.db_stat_insert(ops, elapsed_avg, queue_size_avg)
-            self.start_datetime = datetime_now
-            self.elapsed_sum = 0
-            self.queue_size_sum = 0
-            self.sum_count = 0
+        # 统计数据
+        self.statistics(elapsed, qsize)
 
         # 删除对象
         if idx_del > 0:

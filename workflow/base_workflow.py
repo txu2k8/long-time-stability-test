@@ -256,6 +256,24 @@ class BaseWorkflow(WorkflowInterface, ABC):
         data = [(ops, elapsed_avg, queue_size_avg, date_time)]
         self.sqlite3_opt.insert_update_delete(insert_sql, data)
 
+    def statistics(self, elapsed, qsize):
+        self.elapsed_sum += elapsed
+        self.queue_size_sum += qsize
+        self.sum_count += 1
+        datetime_now = datetime.datetime.now()
+        elapsed_seconds = (datetime_now - self.start_datetime).seconds
+        if elapsed_seconds >= 60:
+            # 每分钟统计一次平均值
+            ops = self.sum_count / elapsed_seconds
+            elapsed_avg = self.elapsed_sum / self.sum_count
+            queue_size_avg = self.queue_size_sum / self.sum_count
+            logger.info("OPS={}, elapsed_avg={}, queue_size_avg={}".format(ops, elapsed_avg, queue_size_avg))
+            self.db_stat_insert(ops, elapsed_avg, queue_size_avg)
+            self.start_datetime = datetime_now
+            self.elapsed_sum = 0
+            self.queue_size_sum = 0
+            self.sum_count = 0
+
     async def worker(self, *args, **kwargs):
         """
         worker
@@ -339,7 +357,7 @@ class BaseWorkflow(WorkflowInterface, ABC):
         ))
         queue = asyncio.Queue()
         # 创建100倍 concurrent 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.main_concurrent * 2000)]
+        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.prepare_concurrent * 2000)]
 
         await self.producer_prepare(queue)
         await queue.join()
