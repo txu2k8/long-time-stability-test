@@ -35,16 +35,14 @@ class VideoMonitor3(BaseVideoMonitor):
         )
         pass
 
-    async def worker(self, client: MClient, idx_put, idx_del=-1, qsize=0):
+    async def worker(self, client: MClient, idx_put, idx_del=-1):
         """
         上传指定对象
         :param client:
         :param idx_put:
         :param idx_del:
-        :param qsize: queue队列深度
         :return:
         """
-        logger.debug("当前队列深度：{}".format(qsize))
         bucket, obj_path, current_date = self.bucket_obj_path_calc(idx_put)
         # 获取待上传的源文件
         src_file = random.choice(self.file_list)
@@ -56,7 +54,7 @@ class VideoMonitor3(BaseVideoMonitor):
         # self.db_obj_insert(str(idx_put), current_date, bucket, obj_path, src_file.md5, rc, elapsed, qsize)
 
         # 统计数据
-        self.statistics(elapsed, qsize)
+        self.statistics(elapsed)
 
         # 删除对象
         if idx_del > 0:
@@ -87,18 +85,6 @@ class VideoMonitor3(BaseVideoMonitor):
             if idx_put % self.main_concurrent == 0:
                 await asyncio.sleep(1)  # 每秒生产 {main_concurrent} 个待处理项
             idx_put += 1
-
-    async def consumer(self, queue):
-        """
-        consume queue队列，指定队列中全部被消费
-        :param queue:
-        :return:
-        """
-        while True:
-            item = await queue.get()
-            qsize = queue.qsize()
-            await self.worker(*item, qsize=qsize)
-            queue.task_done()
 
 
 if __name__ == '__main__':

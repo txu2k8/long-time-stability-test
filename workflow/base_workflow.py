@@ -94,7 +94,6 @@ class BaseWorkflow(WorkflowInterface, ABC):
         self.start_datetime = datetime.datetime.now()
         self.sum_count = 0
         self.elapsed_sum = 0
-        self.queue_size_sum = 0
 
         # 初始化数据库
         self.db_obj_table_name = "obj_info"
@@ -248,7 +247,7 @@ class BaseWorkflow(WorkflowInterface, ABC):
         data = [(str_idx,)]
         self.sqlite3_opt.insert_update_delete(delete_sql, data)
 
-    def db_stat_insert(self, ops, elapsed_avg, queue_size_avg):
+    def db_stat_insert(self, ops, elapsed_avg, queue_size_avg=0):
         insert_sql = '''
                 INSERT INTO {} ( ops, elapsed_avg, queue_size_avg, datetime ) values (?, ?, ?, ?)
                 '''.format(self.db_stat_table_name)
@@ -256,22 +255,19 @@ class BaseWorkflow(WorkflowInterface, ABC):
         data = [(ops, elapsed_avg, queue_size_avg, date_time)]
         self.sqlite3_opt.insert_update_delete(insert_sql, data)
 
-    def statistics(self, elapsed, qsize):
+    def statistics(self, elapsed):
         self.elapsed_sum += elapsed
-        self.queue_size_sum += qsize
         self.sum_count += 1
         datetime_now = datetime.datetime.now()
         elapsed_seconds = (datetime_now - self.start_datetime).seconds
         if elapsed_seconds >= 60:
             # 每分钟统计一次平均值
-            ops = self.sum_count / elapsed_seconds
-            elapsed_avg = self.elapsed_sum / self.sum_count
-            queue_size_avg = self.queue_size_sum / self.sum_count
-            logger.info("OPS={}, elapsed_avg={}, queue_size_avg={}".format(ops, elapsed_avg, queue_size_avg))
-            self.db_stat_insert(ops, elapsed_avg, queue_size_avg)
+            ops = round(self.sum_count / elapsed_seconds, 3)
+            elapsed_avg = round(self.elapsed_sum / self.sum_count, 3)
+            logger.info("OPS={}, elapsed_avg={}".format(ops, elapsed_avg))
+            self.db_stat_insert(ops, elapsed_avg)
             self.start_datetime = datetime_now
             self.elapsed_sum = 0
-            self.queue_size_sum = 0
             self.sum_count = 0
 
     async def worker(self, *args, **kwargs):
@@ -307,7 +303,7 @@ class BaseWorkflow(WorkflowInterface, ABC):
         """
         logger.info("Produce Main PUT/DEL bucket={}, concurrent={}, ".format(self.bucket_num, self.main_concurrent))
         client = self.client_list[0]
-        idx = self.idx_put_start
+        idx = self.idx_main_start
         while idx <= self.obj_num:
             await queue.put((client, idx))
             self.idx_put_current = idx
@@ -357,13 +353,14 @@ class BaseWorkflow(WorkflowInterface, ABC):
         ))
         queue = asyncio.Queue()
         # 创建100倍 concurrent 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.prepare_concurrent * 2000)]
+        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.prepare_concurrent * 2)]
 
         await self.producer_prepare(queue)
         await queue.join()
         for c in consumers:
             c.cancel()
         logger.log("STAGE", "预置对象完成！obj={}, bucket={}".format(self.obj_num, self.bucket_num))
+        logger.log("STAGE", "销毁预置阶段consumers！len={}".format(len(consumers)))
         await asyncio.sleep(5)
 
     async def stage_main(self):
@@ -371,7 +368,7 @@ class BaseWorkflow(WorkflowInterface, ABC):
         执行 生产->消费 queue
         :return:
         """
-        logger.log("STAGE", "main->写删均衡测试，put_obj_idx_start={}, bucket={}, concurrent={}".format(
+        logger.log("STAGE", "main->写删均衡测试，idx_main_start={}, bucket={}, concurrent={}".format(
             self.idx_main_start, self.bucket_num, self.main_concurrent
         ))
 

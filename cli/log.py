@@ -58,7 +58,8 @@ def init_logger(prefix='test', case_id=0, trace=False):
     logger.level('DESC', no=52)  # CRITICAL < DESC，打印描述信息到所有日志文件
 
     # 初始化控制台配置
-    logger.add(sys.stderr, level=loglevel, format=spec_format, filter=lambda x: "OBJ" not in str(x['level']).upper())
+    if trace:
+        logger.add(sys.stderr, level=loglevel, format=spec_format, filter=lambda x: "OBJ" not in str(x['level']).upper())
 
     # 日志文件名处理
     logfile_prefix = '{}_{}'.format(TIME_STR, prefix)
