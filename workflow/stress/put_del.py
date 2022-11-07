@@ -9,7 +9,7 @@
 """
 import random
 
-from workflow.stress.base import BaseStress
+from workflow.stress.stress_workflow import BaseStress
 from utils.util import get_local_files
 
 

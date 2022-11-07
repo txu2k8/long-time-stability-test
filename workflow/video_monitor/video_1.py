@@ -15,10 +15,10 @@ import random
 import asyncio
 from loguru import logger
 
-from workflow.video_monitor.base import BaseVideoMonitor
+from workflow.video_monitor.video_workflow import VideoWorkflow
 
 
-class VideoMonitor1(BaseVideoMonitor):
+class VideoMonitor1(VideoWorkflow):
     """
     视频监控场景测试 - 1，写删不同协程中并行处理，多对象并行处理（读取数据库）
     1、init阶段：新建10桶，初始化数据库用于存储写入的对象路径

@@ -109,7 +109,7 @@ class MClient(ClientInterface, ABC):
             raise Exception("桶创建失败! - {}".format(bucket))
         return rc, output
 
-    async def put(self, src_path, bucket, dst_path, disable_multipart=False, tags="", attr=""):
+    def put(self, src_path, bucket, dst_path, disable_multipart=False, tags="", attr=""):
         """
         mc cp命令上传对象
         :param src_path:
@@ -124,7 +124,10 @@ class MClient(ClientInterface, ABC):
         attr += "{}disable-multipart={}".format(';' if attr else '', disable_multipart)
         cp = 'cp --disable-multipart' if disable_multipart else 'cp'
         args = '{} --tags "{}" --attr "{}" {} {}/{}/{}'.format(cp, tags, attr, src_path, self.alias, bucket, dst_path)
-        rc, elapsed, _, _ = await self._async_exec(args)
+        start = datetime.datetime.now()
+        rc, stdout = self._exec(args)
+        end = datetime.datetime.now()
+        elapsed = (end - start).total_seconds()  # 耗时 x.y 秒
         if rc == 0:
             logger.success("上传成功！{} -> {}/{}，耗时：{}".format(src_path, bucket, dst_path, elapsed))
             logger.log("OBJ", "{}/{}".format(bucket, dst_path))

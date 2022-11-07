@@ -7,16 +7,29 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
+import signal
 import random
 import datetime
-import asyncio
+from abc import ABC
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from loguru import logger
 
-from workflow.base_workflow import BaseWorkflow
+from workflow.workflow_base import WorkflowBase
+from workflow.workflow_interface import WorkflowInterface
+
+is_exit = False
 
 
-class BaseStress(BaseWorkflow):
-    """操作处理 - 基本抽象，生产->消费模式"""
+def handler(signum, frame):
+    global is_exit
+    is_exit = True
+    logger.warning("receive a signal {0}, is_exit = {1}".format(signum, is_exit))
+
+
+class BaseStress(WorkflowBase, WorkflowInterface, ABC):
+    """
+    压力测试 - 基类，多线程并发处理
+    """
 
     def __init__(
             self,
@@ -43,14 +56,7 @@ class BaseStress(BaseWorkflow):
         # self.set_core_loglevel()
         pass
 
-    def stage_prepare(self):
-        """
-        批量创建特定对象
-        :return:
-        """
-        pass
-
-    async def worker(self, client, idx):
+    def worker(self, client, idx):
         """
         操作 worker，各个实例单独实现
         :param client:
@@ -58,13 +64,23 @@ class BaseStress(BaseWorkflow):
         :return:
         """
         logger.info('worker示例，待实例自定义')
-        await asyncio.sleep(1)
 
-    async def producer(self, queue: asyncio.Queue):
+    def producer_prepare(self):
         """
-        produce queue队列，每秒生产concurrent个，实际生产总数=obj_num * bucket_num（指定时间除外）
-        数量优先，指定时间则覆盖idx循环操作
-        :param queue:
+        预埋阶段：生成器 - 生成待处理数据
+        :return:
+        """
+        logger.info("Produce PREPARE bucket={}, concurrent={}, ".format(self.bucket_num, self.prepare_concurrent))
+        client = self.client_list[0]
+        idx = self.idx_put_start
+        while idx <= self.obj_num:
+            yield client, idx
+            self.idx_put_current = idx
+            idx += 1
+
+    def producer_main(self):
+        """
+        Main阶段：生成器 - 生成待处理数据
         :return:
         """
         # 生产待处理的queue列表
@@ -73,10 +89,7 @@ class BaseStress(BaseWorkflow):
             for x in range(self.idx_put_start, self.obj_num):
                 logger.trace("producing {}/{}".format(x, self.obj_num))
                 client = random.choice(self.client_list)  # 随机选择客户端
-                await queue.put((client, x))
-                if x % self.main_concurrent == 0:
-                    await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
-                x += 1
+                yield client, x
             return
 
         logger.info("Run test duration {}s".format(self.duration))
@@ -92,9 +105,7 @@ class BaseStress(BaseWorkflow):
                     break
                 logger.trace("Loop-{} producing {}/{}".format(produce_loop, idx, self.obj_num))
                 client = random.choice(self.client_list)  # 随机选择客户端
-                await queue.put((client, idx))
-                if idx % self.main_concurrent == 0:
-                    await asyncio.sleep(1)  # 每秒生产 {concurrent} 个待处理项
+                yield client, idx
                 idx += 1
                 end = datetime.datetime.now()
             produce_loop += 1
@@ -104,18 +115,26 @@ class BaseStress(BaseWorkflow):
         logger.info("duration {}s completed!".format(self.duration))
         return
 
-    async def consumer(self, queue):
+    def stage_prepare(self):
         """
-        consume queue队列，指定队列中全部被消费
-        :param queue:
+        批量创建特定对象
         :return:
         """
-        while True:
-            item = await queue.get()
-            await self.worker(*item)
-            queue.task_done()
+        logger.log("STAGE", "prepare->数据预埋，obj={}, bucket={}, concurrent={}".format(
+            self.obj_num, self.bucket_num, self.prepare_concurrent
+        ))
+        signal.signal(signal.SIGINT, handler)
+        signal.signal(signal.SIGTERM, handler)
+        futures = set()
+        with ThreadPoolExecutor(max_workers=self.prepare_concurrent) as executor:
+            for item in self.producer_prepare():
+                futures.add(executor.submit(self.worker, *item))
+                if is_exit:
+                    break
+        for future in as_completed(futures):
+            future.result()
 
-    async def stage_main(self):
+    def stage_main(self):
         """
         执行 生产->消费 queue
         :return:
@@ -123,22 +142,21 @@ class BaseStress(BaseWorkflow):
         logger.log("STAGE", "main->执行测试，obj={}, bucket={}, concurrent={}".format(
             self.obj_num, self.bucket_num, self.main_concurrent
         ))
-
-        queue = asyncio.Queue()
-        # 创建100倍 concurrent 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.main_concurrent * 2000)]
-        await self.producer(queue)
-        await queue.join()
-        for c in consumers:
-            c.cancel()
+        signal.signal(signal.SIGINT, handler)
+        signal.signal(signal.SIGTERM, handler)
+        futures = set()
+        with ThreadPoolExecutor(max_workers=self.main_concurrent) as executor:
+            for item in self.producer_main():
+                futures.add(executor.submit(self.worker, *item))
+                if is_exit:
+                    break
+        for future in as_completed(futures):
+            future.result()
 
     def run(self):
         self.stage_init()
         self.stage_prepare()
-
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.stage_main())
-        loop.close()
+        self.stage_main()
 
 
 if __name__ == '__main__':

@@ -7,7 +7,7 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
-from workflow.stress.base import BaseStress
+from workflow.stress.stress_workflow import BaseStress
 
 
 class DeleteObject(BaseStress):

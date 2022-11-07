@@ -16,10 +16,10 @@ import asyncio
 from loguru import logger
 
 from client.mc import MClient
-from workflow.video_monitor.base import BaseVideoMonitor
+from workflow.video_monitor.video_workflow import VideoWorkflow
 
 
-class VideoMonitor3(BaseVideoMonitor):
+class VideoMonitor3(VideoWorkflow):
     """视频监控场景测试 - 3，写删不同协程中并行处理，多对象并行处理（不读取数据库）"""
     def __init__(
             self,

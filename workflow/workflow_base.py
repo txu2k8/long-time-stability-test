@@ -9,10 +9,8 @@
 """
 import random
 import datetime
-import asyncio
 from collections import defaultdict
 from typing import List, Text
-from abc import ABC
 from loguru import logger
 import arrow
 
@@ -23,7 +21,6 @@ from utils.util import zfill
 from client.mc import MClient
 from client.s3cmd import S3CmdClient
 from client.client_interface import ClientInterface
-from workflow.workflow_interface import WorkflowInterface
 
 
 def init_clients(client_types: List[Text], endpoint, access_key, secret_key, tls, alias='play'):
@@ -51,19 +48,16 @@ def init_clients(client_types: List[Text], endpoint, access_key, secret_key, tls
     return clients_info
 
 
-class BaseWorkflow(WorkflowInterface, ABC):
+class WorkflowBase(object):
     """
-    工作流 - 基类
-    1、init阶段：新建桶，初始化数据库用于存储写入的对象路径
-    2、Prepare阶段：预埋对象，平均分配到桶中，预埋数据并行数=prepare_concurrent
-    3、Main阶段：测试执行 上传、下载、列表、删除等，并行数=concurrent
+    工作流 - 基类，统一对象名、对象路径等算法
     """
 
     def __init__(
             self,
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num=1, obj_prefix='data', obj_num=10, multipart=False, local_path="",
-            main_concurrent=1, prepare_concurrent=1, max_workers=1, idx_width=1, idx_put_start=1, idx_del_start=1
+            main_concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=1, idx_del_start=1
     ):
         self.client_types = client_types
         self.endpoint = endpoint
@@ -81,7 +75,6 @@ class BaseWorkflow(WorkflowInterface, ABC):
 
         self.main_concurrent = main_concurrent
         self.prepare_concurrent = prepare_concurrent
-        self.max_workers = max_workers if max_workers > main_concurrent else main_concurrent
 
         self.idx_width = idx_width
         self.idx_put_start = idx_put_start
@@ -269,127 +262,3 @@ class BaseWorkflow(WorkflowInterface, ABC):
             self.start_datetime = datetime_now
             self.elapsed_sum = 0
             self.sum_count = 0
-
-    async def worker(self, *args, **kwargs):
-        """
-        worker
-        :param args:
-        :param kwargs:
-        :return:
-        """
-        await asyncio.sleep(0)
-
-    async def producer_prepare(self, queue):
-        """
-        prepare阶段 produce queue队列
-        :param queue:
-        :return:
-        """
-        logger.info("Produce PREPARE bucket={}, concurrent={}, ".format(self.bucket_num, self.prepare_concurrent))
-        client = self.client_list[0]
-        idx = self.idx_put_start
-        while idx <= self.obj_num:
-            await queue.put((client, idx))
-            self.idx_put_current = idx
-            if idx % self.prepare_concurrent == 0:
-                await asyncio.sleep(1)  # 每秒生产 {prepare_concurrent} 个待处理项
-            idx += 1
-
-    async def producer_main(self, queue):
-        """
-        main阶段 produce queue队列
-        :param queue:
-        :return:
-        """
-        logger.info("Produce Main PUT/DEL bucket={}, concurrent={}, ".format(self.bucket_num, self.main_concurrent))
-        client = self.client_list[0]
-        idx = self.idx_main_start
-        while idx <= self.obj_num:
-            await queue.put((client, idx))
-            self.idx_put_current = idx
-            if idx % self.main_concurrent == 0:
-                await asyncio.sleep(1)  # 每秒生产 {main_concurrent} 个待处理项
-            idx += 1
-
-    async def consumer(self, queue):
-        """
-        consume queue队列，指定队列中全部被消费
-        :param queue:
-        :return:
-        """
-        while True:
-            item = await queue.get()
-            await self.worker(*item)
-            queue.task_done()
-
-    def stage_init(self):
-        """
-        批量创建特定桶
-        :return:
-        """
-        logger.log("STAGE", "init->批量创建特定桶、初始化数据库，bucket_prefix={}, bucket_num={}".format(
-            self.bucket_prefix, self.bucket_num
-        ))
-
-        # 开启debug日志
-        # self.set_core_loglevel()
-
-        # 准备桶
-        client = random.choice(self.client_list)
-        self.make_bucket_if_not_exist(client, self.bucket_prefix, self.bucket_num)
-
-        # 初始化数据库
-        self.db_init()
-
-        logger.log("STAGE", "初始化完成！bucket_prefix={}, bucket_num={}".format(self.bucket_prefix, self.bucket_num))
-
-    async def stage_prepare(self):
-        """
-        批量创建特定对象
-        :return:
-        """
-        logger.log("STAGE", "prepare->预置对象，PUT obj={}, bucket={}, concurrent={}".format(
-            self.obj_num, self.bucket_num, self.prepare_concurrent
-        ))
-        queue = asyncio.Queue()
-        # 创建100倍 concurrent 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.prepare_concurrent * 2)]
-
-        await self.producer_prepare(queue)
-        await queue.join()
-        for c in consumers:
-            c.cancel()
-        logger.log("STAGE", "预置对象完成！obj={}, bucket={}".format(self.obj_num, self.bucket_num))
-        logger.log("STAGE", "销毁预置阶段consumers！len={}".format(len(consumers)))
-        await asyncio.sleep(5)
-
-    async def stage_main(self):
-        """
-        执行 生产->消费 queue
-        :return:
-        """
-        logger.log("STAGE", "main->写删均衡测试，idx_main_start={}, bucket={}, concurrent={}".format(
-            self.idx_main_start, self.bucket_num, self.main_concurrent
-        ))
-
-        queue = asyncio.Queue()
-        # 创建 max_workers 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.max_workers)]
-
-        await self.producer_main(queue)
-        await queue.join()
-        for c in consumers:
-            c.cancel()
-
-    def run(self):
-        """
-        执行 生产->消费 queue
-        :return:
-        """
-        self.stage_init()
-
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.stage_prepare())
-
-        asyncio.ensure_future(self.stage_main())
-        loop.run_forever()

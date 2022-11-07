@@ -9,7 +9,7 @@
 """
 import random
 
-from workflow.stress.base import BaseStress
+from workflow.stress.stress_workflow import BaseStress
 from utils.util import get_local_files
 
 
@@ -39,7 +39,7 @@ class PutObject(BaseStress):
         client = random.choice(self.client_list)
         self.make_bucket_if_not_exist(client, self.bucket_prefix, self.bucket_num)
 
-    async def worker(self, client, idx):
+    def worker(self, client, idx):
         """
         上传指定对象
         :param client:
@@ -49,7 +49,7 @@ class PutObject(BaseStress):
         bucket, obj_path = self.bucket_obj_path_calc(idx)
         src_file = random.choice(self.file_list)
         disable_multipart = self.disable_multipart_calc()
-        await client.put(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags, src_file.attr)
+        client.put(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags, src_file.attr)
 
 
 if __name__ == '__main__':
