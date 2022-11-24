@@ -31,7 +31,7 @@ class PutDeleteObject(BaseStress):
         # 准备源数据文件池 字典
         self.file_list = get_local_files(local_path)
 
-    async def worker(self, client, idx):
+    def worker(self, client, idx):
         """
         步骤1：删除对象
         步骤2：上次同名对象
@@ -43,8 +43,8 @@ class PutDeleteObject(BaseStress):
         bucket, obj_path = self.bucket_obj_path_calc(idx)
         src_file = random.choice(self.file_list)
         disable_multipart = self.disable_multipart_calc()
-        await client.delete(bucket, obj_path)
-        await client.put(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags, src_file.attr)
+        client.delete(bucket, obj_path)
+        client.put(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags, src_file.attr)
 
 
 if __name__ == '__main__':

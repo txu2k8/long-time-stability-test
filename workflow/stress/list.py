@@ -28,7 +28,7 @@ class ListObject(BaseStress):
         )
         pass
 
-    async def worker(self, client, idx):
+    def worker(self, client, idx):
         """
         list查询指定对象
         :param client:
@@ -36,6 +36,9 @@ class ListObject(BaseStress):
         :return:
         """
         bucket, obj_path = self.bucket_obj_path_calc(idx)
-        await client.list(bucket, obj_path)
+        client.list(bucket, obj_path)
 
-
+    def run(self):
+        # self.stage_init()
+        # self.stage_prepare()
+        self.stage_main()

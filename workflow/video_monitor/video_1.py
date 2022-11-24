@@ -67,7 +67,7 @@ class VideoMonitor1(VideoWorkflow):
         :return:
         """
         bucket, obj_path, _ = self.bucket_obj_path_calc(idx)
-        rc = await client.delete(bucket, obj_path)
+        rc = await client.async_delete(bucket, obj_path)
         if rc == 0:
             self.db_obj_delete(str(idx))
 
@@ -121,7 +121,7 @@ class VideoMonitor1(VideoWorkflow):
         :return:
         """
         while True:
-            item = await queue.get()
+            item = await queue.async_get()
             await self.worker_put(*item)
             queue.task_done()
 
@@ -132,7 +132,7 @@ class VideoMonitor1(VideoWorkflow):
         :return:
         """
         while True:
-            item = await queue.get()
+            item = await queue.async_get()
             await self.worker_delete(*item)
             queue.task_done()
 

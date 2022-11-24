@@ -41,7 +41,7 @@ class VideoMonitor2(VideoMonitor1):
         :return:
         """
         bucket, obj_path, _ = self.bucket_obj_path_calc(int(idx))
-        await client.delete(bucket, obj_path)
+        await client.async_delete(bucket, obj_path)
         self.db_obj_delete(str(idx))
 
     async def producer_delete(self, queue):

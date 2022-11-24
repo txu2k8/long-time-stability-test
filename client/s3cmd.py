@@ -129,7 +129,7 @@ class S3CmdClient(ClientInterface, ABC):
         """
         return await self.put(src_path, bucket, dst_path, disable_multipart, tags)
 
-    async def get(self, bucket, obj_path, local_path, disable_multipart=False):
+    async def async_get(self, bucket, obj_path, local_path, disable_multipart=False):
         """
         s3cmd get s3://BUCKET/OBJECT LOCAL_FILE 命令下载对象
         :param bucket:
@@ -148,7 +148,7 @@ class S3CmdClient(ClientInterface, ABC):
             logger.error("下载失败！{}/{} -> {}".format(bucket, obj_path, local_path))
         return rc
 
-    async def delete(self, bucket, dst_path):
+    async def async_delete(self, bucket, dst_path):
         """
         s3cmd del s3://BUCKET/OBJECT 命令删除对象
         :param bucket:

@@ -59,6 +59,6 @@ def multi_rm_objs_by_name(
                 obj_name_split = obj_name.rstrip("/").split("/")
                 bucket = obj_name_split[0]
                 obj_path = '/'.join(obj_name_split[1:])
-                futures.add(exector.submit(client.delete, bucket, obj_path))
+                futures.add(exector.submit(client.async_delete, bucket, obj_path))
     for future in as_completed(futures):
         future.result()

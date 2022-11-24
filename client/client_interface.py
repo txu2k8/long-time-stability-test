@@ -29,7 +29,23 @@ class ClientInterface(ABC):
         pass
 
     @abstractmethod
+    def async_get(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
     def delete(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def async_delete(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def list(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def async_list(self, *args, **kwargs):
         pass
 
     @abstractmethod

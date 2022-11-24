@@ -28,7 +28,7 @@ class DeleteObject(BaseStress):
         )
         pass
 
-    async def worker(self, client, idx):
+    def worker(self, client, idx):
         """
         删除指定对象
         :param client:
@@ -36,4 +36,9 @@ class DeleteObject(BaseStress):
         :return:
         """
         bucket, obj_path = self.bucket_obj_path_calc(idx)
-        await client.delete(bucket, obj_path)
+        client.delete(bucket, obj_path)
+
+    def run(self):
+        # self.stage_init()
+        # self.stage_prepare()
+        self.stage_main()

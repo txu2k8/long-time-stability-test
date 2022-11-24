@@ -51,6 +51,11 @@ class PutObject(BaseStress):
         disable_multipart = self.disable_multipart_calc()
         client.put(src_file.full_path, bucket, obj_path, disable_multipart, src_file.tags, src_file.attr)
 
+    def run(self):
+        self.stage_init()
+        # self.stage_prepare()
+        self.stage_main()
+
 
 if __name__ == '__main__':
     pass

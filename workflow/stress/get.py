@@ -32,7 +32,7 @@ class GetObject(BaseStress):
         )
         pass
 
-    async def worker(self, client, idx):
+    def worker(self, client, idx):
         """
         下载对象并比较MD5值
         :param client:
@@ -43,8 +43,8 @@ class GetObject(BaseStress):
         bucket, obj_path = self.bucket_obj_path_calc(idx)
         local_file_path = os.path.join(self.local_path, '{}_{}'.format(bucket, obj_path.replace('/', '_')))
         disable_multipart = self.disable_multipart_calc()
-        rc, expect_md5 = await client.get_obj_md5(bucket, obj_path)
-        await client.get(bucket, obj_path, local_file_path, disable_multipart)
+        rc, expect_md5 = client.get_obj_md5(bucket, obj_path)
+        client.get(bucket, obj_path, local_file_path, disable_multipart)
         if expect_md5:
             download_md5 = get_md5_value(local_file_path)
             if download_md5 != expect_md5:
@@ -58,4 +58,7 @@ class GetObject(BaseStress):
             # 未做MD5值校验，删除本地文件
             os.remove(local_file_path)
 
-
+    def run(self):
+        # self.stage_init()
+        # self.stage_prepare()
+        self.stage_main()

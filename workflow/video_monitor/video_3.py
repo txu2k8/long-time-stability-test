@@ -59,7 +59,7 @@ class VideoMonitor3(VideoWorkflow):
         # 删除对象
         if idx_del > 0:
             bucket_del, obj_path_del, _ = self.bucket_obj_path_calc(idx_del)
-            await client.delete(bucket_del, obj_path_del)
+            await client.async_delete(bucket_del, obj_path_del)
             # 更新删除结果到数据库表
             # if rc == 0:
             #     self.db_obj_update_delete_flag(str(idx_del))

@@ -156,7 +156,26 @@ class MClient(ClientInterface, ABC):
             logger.error("上传失败！{} -> {}/{}，耗时：{}".format(src_path, bucket, dst_path, elapsed))
         return rc, elapsed
 
-    async def get(self, bucket, obj_path, local_path, disable_multipart=False):
+    def get(self, bucket, obj_path, local_path, disable_multipart=False):
+        """
+        mc cp命令下载对象
+        :param bucket:
+        :param obj_path:
+        :param local_path:
+        :param disable_multipart:
+        :return:
+        """
+        args = 'cp {}/{}/{} {}'.format(self.alias, bucket, obj_path, local_path)
+        if disable_multipart:
+            args += " --disable-multipart"
+        rc, output = self._exec(args)
+        if rc == 0:
+            logger.success("下载成功！{}/{} -> {}".format(bucket, obj_path, local_path))
+        else:
+            logger.error("下载失败！{}/{} -> {}".format(bucket, obj_path, local_path))
+        return rc
+
+    async def async_get(self, bucket, obj_path, local_path, disable_multipart=False):
         """
         mc cp命令下载对象
         :param bucket:
@@ -175,7 +194,23 @@ class MClient(ClientInterface, ABC):
             logger.error("下载失败！{}/{} -> {}".format(bucket, obj_path, local_path))
         return rc
 
-    async def delete(self, bucket, dst_path):
+    def delete(self, bucket, dst_path):
+        """
+        mc rm命令删除对象
+        :param bucket:
+        :param dst_path:
+        :return:
+        """
+        args = 'rm {}/{}/{}'.format(self.alias, bucket, dst_path)
+        rc, output = self._exec(args)
+        if rc == 0:
+            logger.success("删除成功！{}/{}".format(bucket, dst_path))
+            logger.log("OBJ", "{}/{}".format(bucket, dst_path))
+        else:
+            logger.error('删除失败！{}/{}'.format(bucket, dst_path))
+        return rc
+
+    async def async_delete(self, bucket, dst_path):
         """
         mc rm命令删除对象
         :param bucket:
@@ -191,7 +226,22 @@ class MClient(ClientInterface, ABC):
             logger.error('删除失败！{}/{}'.format(bucket, dst_path))
         return rc
 
-    async def list(self, bucket, obj_path):
+    def list(self, bucket, obj_path):
+        """
+        mc ls 命令 列表查询对象
+        :param bucket:
+        :param obj_path:
+        :return:
+        """
+        args = 'ls {}/{}/{}'.format(self.alias, bucket, obj_path)
+        rc, output = self._exec(args)
+        if rc == 0:
+            logger.success("列表对象成功！{}/{}".format(bucket, obj_path))
+        else:
+            logger.error("列表对象失败！{}/{}".format(bucket, obj_path))
+        return rc
+
+    async def async_list(self, bucket, obj_path):
         """
         mc ls 命令 列表查询对象
         :param bucket:
@@ -225,7 +275,7 @@ class MClient(ClientInterface, ABC):
             logger.error("获取对象标签失败！{}/{}".format(bucket, obj_path))
         return rc, tag_dict
 
-    async def get_obj_md5_by_tag(self, bucket, obj_path):
+    def get_obj_md5_by_tag(self, bucket, obj_path):
         """
         获取tag中的md5列表
         :param bucket:
@@ -234,10 +284,10 @@ class MClient(ClientInterface, ABC):
         """
         md5 = ''
         args = 'tag list {}/{}/{} --json'.format(self.alias, bucket, obj_path)
-        rc, _, stdout, stderr = await self._async_exec(args)
+        rc, output = self._exec(args)
         if rc == 0:
             logger.success("获取对象标签成功！{}/{}".format(bucket, obj_path))
-            json_output = json.loads(stdout.decode().strip('\n'))
+            json_output = json.loads(output.strip('\n'))
             if json_output['status'] == 'success' and 'tagset' in json_output:
                 tag_dict = json_output['tagset']
                 if 'md5' in tag_dict:
@@ -246,7 +296,7 @@ class MClient(ClientInterface, ABC):
             logger.error("获取对象标签失败！{}/{}".format(bucket, obj_path))
         return rc, md5
 
-    async def get_obj_md5_by_attr(self, bucket, obj_path):
+    def get_obj_md5_by_attr(self, bucket, obj_path):
         """
         获取attr中的md5
         :param bucket:
@@ -255,10 +305,10 @@ class MClient(ClientInterface, ABC):
         """
         md5 = ''
         args = 'stat {}/{}/{} --json'.format(self.alias, bucket, obj_path)
-        rc, _, stdout, stderr = await self._async_exec(args)
+        rc, output = self._exec(args)
         if rc == 0:
             logger.success("获取对象stat信息成功！{}/{}".format(bucket, obj_path))
-            json_output = json.loads(stdout.decode().strip('\n'))
+            json_output = json.loads(output.strip('\n'))
             if json_output['status'] == 'success':
                 metadata_dict = json_output['metadata']
                 if 'X-Amz-Meta-Md5' in metadata_dict:
@@ -274,8 +324,8 @@ class MClient(ClientInterface, ABC):
             logger.error("获取对象信息失败！{}/{}".format(bucket, obj_path))
         return rc, md5
 
-    async def get_obj_md5(self, bucket, obj_path):
-        rc, md5 = await self.get_obj_md5_by_tag(bucket, obj_path)
+    def get_obj_md5(self, bucket, obj_path):
+        rc, md5 = self.get_obj_md5_by_tag(bucket, obj_path)
         return rc, md5
 
     def delete_bucket_objs(self, bucket):
