@@ -11,6 +11,7 @@ from config.globals import *
 
 
 __version__ = "1.0.3 - 2022-10-25"
+__author__ = "tao.xu"
 
 __all__ = [
     "__version__",
