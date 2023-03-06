@@ -51,13 +51,15 @@ def init_logger(prefix='test', case_id=0, trace=False):
     logger.remove()
 
     # 新增级别
-    logger.level('MC', no=21, color='<blue><bold>')  # INFO < MC < ERROR
-    logger.level('S3CMD', no=22, color='<blue><bold>')  # INFO < S3CMD < ERROR
+    logger.level('STAGE', no=21, color='<blue><bold>')  # INFO < STAGE < ERROR
+    logger.level('MC', no=22, color='<blue><bold>')  # INFO < MC < ERROR
+    logger.level('S3CMD', no=23, color='<blue><bold>')  # INFO < S3CMD < ERROR
     logger.level('OBJ', no=51)  # CRITICAL < OBJ，打印操作的对象列表
     logger.level('DESC', no=52)  # CRITICAL < DESC，打印描述信息到所有日志文件
 
     # 初始化控制台配置
-    logger.add(sys.stderr, level=loglevel, format=spec_format, filter=lambda x: "OBJ" not in str(x['level']).upper())
+    if trace:
+        logger.add(sys.stderr, level=loglevel, format=spec_format, filter=lambda x: "OBJ" not in str(x['level']).upper())
 
     # 日志文件名处理
     logfile_prefix = '{}_{}'.format(TIME_STR, prefix)
@@ -81,16 +83,15 @@ def init_logger(prefix='test', case_id=0, trace=False):
     )
 
     # 初始化日志配置 -- 记录对象列表
-    if prefix in ['put', 'delete']:
-        logger.add(
-            os.path.join(LOG_DIR, '{}_obj.log'.format(logfile_prefix)),
-            rotation=LOG_ROTATION,  # '100 MB',
-            retention=LOG_RETENTION,  # '30 days',
-            enqueue=True,
-            encoding="utf-8",
-            level='OBJ',
-            format=OBJECT_FORMAT
-        )
+    logger.add(
+        os.path.join(LOG_DIR, '{}_obj.log'.format(logfile_prefix)),
+        rotation=LOG_ROTATION,  # '100 MB',
+        retention=LOG_RETENTION,  # '30 days',
+        enqueue=True,
+        encoding="utf-8",
+        level='OBJ',
+        format=OBJECT_FORMAT
+    )
 
     # 初始化日志配置 -- error日志文件
     logger.add(

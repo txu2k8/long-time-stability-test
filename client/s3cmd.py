@@ -15,7 +15,7 @@ from loguru import logger
 import asyncio
 import subprocess
 
-from client.clientinterface import ClientInterface
+from client.client_interface import ClientInterface
 
 # --- OS constants
 POSIX = os.name == "posix"
@@ -117,7 +117,19 @@ class S3CmdClient(ClientInterface, ABC):
             logger.error("上传失败！ {} -> {}/{}".format(src_path, bucket, dst_path))
         return rc
 
-    async def get(self, bucket, obj_path, local_path, disable_multipart=False):
+    async def put_without_attr(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
+        """
+        s3cmd put FILE [FILE...] s3://BUCKET[/PREFIX] 命令上传对象
+        :param src_path:
+        :param bucket:
+        :param dst_path:
+        :param disable_multipart:
+        :param tags:
+        :return:
+        """
+        return await self.put(src_path, bucket, dst_path, disable_multipart, tags)
+
+    async def async_get(self, bucket, obj_path, local_path, disable_multipart=False):
         """
         s3cmd get s3://BUCKET/OBJECT LOCAL_FILE 命令下载对象
         :param bucket:
@@ -136,7 +148,7 @@ class S3CmdClient(ClientInterface, ABC):
             logger.error("下载失败！{}/{} -> {}".format(bucket, obj_path, local_path))
         return rc
 
-    async def delete(self, bucket, dst_path):
+    async def async_delete(self, bucket, dst_path):
         """
         s3cmd del s3://BUCKET/OBJECT 命令删除对象
         :param bucket:

@@ -9,13 +9,15 @@
 """
 import os
 import json
+import re
+import datetime
 from abc import ABC
 
 from loguru import logger
 import asyncio
 import subprocess
 
-from client.clientinterface import ClientInterface
+from client.client_interface import ClientInterface
 
 # --- OS constants
 POSIX = os.name == "posix"
@@ -57,19 +59,20 @@ class MClient(ClientInterface, ABC):
 
     async def _async_exec(self, args):
         cmd = self._args2cmd(args)
+        start = datetime.datetime.now()
         proc = await asyncio.create_subprocess_shell(
             cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE)
-        await asyncio.sleep(2)
         stdout, stderr = await proc.communicate()
-
+        end = datetime.datetime.now()
+        elapsed = (end - start).total_seconds()  # 耗时 x.y 秒
         rc = proc.returncode
         if stdout:
             logger.debug(stdout.decode().strip('\n'))
         if stderr:
             logger.error('Response({}):\n{}'.format(cmd, stderr.decode().strip('\n')))
-        return rc, stdout, stderr
+        return rc, elapsed, stdout, stderr
 
     def set_alias(self):
         args = "alias set {} {} {} {}".format(self.alias, self.endpoint, self.access_key, self.secret_key)
@@ -106,9 +109,9 @@ class MClient(ClientInterface, ABC):
             raise Exception("桶创建失败! - {}".format(bucket))
         return rc, output
 
-    async def put(self, src_path, bucket, dst_path, disable_multipart=False, tags="", attr=""):
+    def put(self, src_path, bucket, dst_path, disable_multipart=False, tags="", attr=""):
         """
-        uc cp命令上传对象
+        mc cp命令上传对象
         :param src_path:
         :param bucket:
         :param dst_path:
@@ -121,17 +124,41 @@ class MClient(ClientInterface, ABC):
         attr += "{}disable-multipart={}".format(';' if attr else '', disable_multipart)
         cp = 'cp --disable-multipart' if disable_multipart else 'cp'
         args = '{} --tags "{}" --attr "{}" {} {}/{}/{}'.format(cp, tags, attr, src_path, self.alias, bucket, dst_path)
-        rc, _, _ = await self._async_exec(args)
+        start = datetime.datetime.now()
+        rc, stdout = self._exec(args)
+        end = datetime.datetime.now()
+        elapsed = (end - start).total_seconds()  # 耗时 x.y 秒
         if rc == 0:
-            logger.success("上传成功！{} -> {}/{}".format(src_path, bucket, dst_path))
+            logger.success("上传成功！{} -> {}/{}，耗时：{}".format(src_path, bucket, dst_path, elapsed))
             logger.log("OBJ", "{}/{}".format(bucket, dst_path))
         else:
-            logger.error("上传失败！{} -> {}/{}".format(src_path, bucket, dst_path))
-        return rc
+            logger.error("上传失败！{} -> {}/{}，耗时：{}".format(src_path, bucket, dst_path, elapsed))
+        return rc, elapsed
 
-    async def get(self, bucket, obj_path, local_path, disable_multipart=False):
+    async def put_without_attr(self, src_path, bucket, dst_path, disable_multipart=False, tags=""):
         """
-        uc cp命令下载对象
+        mc cp命令上传对象
+        :param src_path:
+        :param bucket:
+        :param dst_path:
+        :param disable_multipart:
+        :param tags:
+        :return:
+        """
+        tags += "{}disable-multipart={}".format('&' if tags else '', disable_multipart)
+        cp = 'cp --disable-multipart' if disable_multipart else 'cp'
+        args = '{} --tags "{}" {} {}/{}/{}'.format(cp, tags, src_path, self.alias, bucket, dst_path)
+        rc, elapsed, _, _ = await self._async_exec(args)
+        if rc == 0:
+            logger.success("上传成功！{} -> {}/{}，耗时：{}".format(src_path, bucket, dst_path, elapsed))
+            logger.log("OBJ", "{}/{}".format(bucket, dst_path))
+        else:
+            logger.error("上传失败！{} -> {}/{}，耗时：{}".format(src_path, bucket, dst_path, elapsed))
+        return rc, elapsed
+
+    def get(self, bucket, obj_path, local_path, disable_multipart=False):
+        """
+        mc cp命令下载对象
         :param bucket:
         :param obj_path:
         :param local_path:
@@ -141,22 +168,41 @@ class MClient(ClientInterface, ABC):
         args = 'cp {}/{}/{} {}'.format(self.alias, bucket, obj_path, local_path)
         if disable_multipart:
             args += " --disable-multipart"
-        rc, _, _ = await self._async_exec(args)
+        rc, output = self._exec(args)
         if rc == 0:
             logger.success("下载成功！{}/{} -> {}".format(bucket, obj_path, local_path))
         else:
             logger.error("下载失败！{}/{} -> {}".format(bucket, obj_path, local_path))
         return rc
 
-    async def delete(self, bucket, dst_path):
+    async def async_get(self, bucket, obj_path, local_path, disable_multipart=False):
         """
-        uc rm命令删除对象
+        mc cp命令下载对象
+        :param bucket:
+        :param obj_path:
+        :param local_path:
+        :param disable_multipart:
+        :return:
+        """
+        args = 'cp {}/{}/{} {}'.format(self.alias, bucket, obj_path, local_path)
+        if disable_multipart:
+            args += " --disable-multipart"
+        rc, _, _, _ = await self._async_exec(args)
+        if rc == 0:
+            logger.success("下载成功！{}/{} -> {}".format(bucket, obj_path, local_path))
+        else:
+            logger.error("下载失败！{}/{} -> {}".format(bucket, obj_path, local_path))
+        return rc
+
+    def delete(self, bucket, dst_path):
+        """
+        mc rm命令删除对象
         :param bucket:
         :param dst_path:
         :return:
         """
         args = 'rm {}/{}/{}'.format(self.alias, bucket, dst_path)
-        rc, _, _ = await self._async_exec(args)
+        rc, output = self._exec(args)
         if rc == 0:
             logger.success("删除成功！{}/{}".format(bucket, dst_path))
             logger.log("OBJ", "{}/{}".format(bucket, dst_path))
@@ -164,7 +210,23 @@ class MClient(ClientInterface, ABC):
             logger.error('删除失败！{}/{}'.format(bucket, dst_path))
         return rc
 
-    async def list(self, bucket, obj_path):
+    async def async_delete(self, bucket, dst_path):
+        """
+        mc rm命令删除对象
+        :param bucket:
+        :param dst_path:
+        :return:
+        """
+        args = 'rm {}/{}/{}'.format(self.alias, bucket, dst_path)
+        rc, _, _, _ = await self._async_exec(args)
+        if rc == 0:
+            logger.success("删除成功！{}/{}".format(bucket, dst_path))
+            logger.log("OBJ", "{}/{}".format(bucket, dst_path))
+        else:
+            logger.error('删除失败！{}/{}'.format(bucket, dst_path))
+        return rc
+
+    def list(self, bucket, obj_path):
         """
         mc ls 命令 列表查询对象
         :param bucket:
@@ -172,7 +234,22 @@ class MClient(ClientInterface, ABC):
         :return:
         """
         args = 'ls {}/{}/{}'.format(self.alias, bucket, obj_path)
-        rc, _, _ = await self._async_exec(args)
+        rc, output = self._exec(args)
+        if rc == 0:
+            logger.success("列表对象成功！{}/{}".format(bucket, obj_path))
+        else:
+            logger.error("列表对象失败！{}/{}".format(bucket, obj_path))
+        return rc
+
+    async def async_list(self, bucket, obj_path):
+        """
+        mc ls 命令 列表查询对象
+        :param bucket:
+        :param obj_path:
+        :return:
+        """
+        args = 'ls {}/{}/{}'.format(self.alias, bucket, obj_path)
+        rc, _, _, _ = await self._async_exec(args)
         if rc == 0:
             logger.success("列表对象成功！{}/{}".format(bucket, obj_path))
         else:
@@ -188,7 +265,7 @@ class MClient(ClientInterface, ABC):
         """
         tag_dict = {}
         args = 'tag list {}/{}/{} --json'.format(self.alias, bucket, obj_path)
-        rc, stdout, stderr = await self._async_exec(args)
+        rc, _, stdout, stderr = await self._async_exec(args)
         if rc == 0:
             logger.success("获取对象标签成功！{}/{}".format(bucket, obj_path))
             json_output = json.loads(stdout.decode().strip('\n'))
@@ -198,7 +275,7 @@ class MClient(ClientInterface, ABC):
             logger.error("获取对象标签失败！{}/{}".format(bucket, obj_path))
         return rc, tag_dict
 
-    async def get_obj_md5_by_tag(self, bucket, obj_path):
+    def get_obj_md5_by_tag(self, bucket, obj_path):
         """
         获取tag中的md5列表
         :param bucket:
@@ -207,10 +284,10 @@ class MClient(ClientInterface, ABC):
         """
         md5 = ''
         args = 'tag list {}/{}/{} --json'.format(self.alias, bucket, obj_path)
-        rc, stdout, stderr = await self._async_exec(args)
+        rc, output = self._exec(args)
         if rc == 0:
             logger.success("获取对象标签成功！{}/{}".format(bucket, obj_path))
-            json_output = json.loads(stdout.decode().strip('\n'))
+            json_output = json.loads(output.strip('\n'))
             if json_output['status'] == 'success' and 'tagset' in json_output:
                 tag_dict = json_output['tagset']
                 if 'md5' in tag_dict:
@@ -219,7 +296,7 @@ class MClient(ClientInterface, ABC):
             logger.error("获取对象标签失败！{}/{}".format(bucket, obj_path))
         return rc, md5
 
-    async def get_obj_md5_by_attr(self, bucket, obj_path):
+    def get_obj_md5_by_attr(self, bucket, obj_path):
         """
         获取attr中的md5
         :param bucket:
@@ -228,10 +305,10 @@ class MClient(ClientInterface, ABC):
         """
         md5 = ''
         args = 'stat {}/{}/{} --json'.format(self.alias, bucket, obj_path)
-        rc, stdout, stderr = await self._async_exec(args)
+        rc, output = self._exec(args)
         if rc == 0:
             logger.success("获取对象stat信息成功！{}/{}".format(bucket, obj_path))
-            json_output = json.loads(stdout.decode().strip('\n'))
+            json_output = json.loads(output.strip('\n'))
             if json_output['status'] == 'success':
                 metadata_dict = json_output['metadata']
                 if 'X-Amz-Meta-Md5' in metadata_dict:
@@ -247,6 +324,49 @@ class MClient(ClientInterface, ABC):
             logger.error("获取对象信息失败！{}/{}".format(bucket, obj_path))
         return rc, md5
 
-    async def get_obj_md5(self, bucket, obj_path):
-        rc, md5 = await self.get_obj_md5_by_tag(bucket, obj_path)
+    def get_obj_md5(self, bucket, obj_path):
+        rc, md5 = self.get_obj_md5_by_tag(bucket, obj_path)
         return rc, md5
+
+    def delete_bucket_objs(self, bucket):
+        """
+        mc rm命令删除桶中所有对象
+        :param bucket:
+        :return:
+        """
+        args = 'rm --recursive --force --dangerous {}/{}'.format(self.alias, bucket)
+        rc, output = self._exec(args)
+        if rc == 0:
+            logger.success("删除成功！{}/{}".format(self.alias, bucket))
+        return rc, output
+
+    def get_all_buckets(self):
+        """
+        获取所有桶列表
+        :return:
+        """
+        buckets = []
+        args = 'ls {}'.format(self.alias)
+        rc, output = self._exec(args)
+        if rc == 0:
+            logger.success("桶列表成功！{}/*".format(self.alias))
+            for b in output.split("\n"):
+                bucket_names = re.findall(r"0B\s+(.*)/", b)
+                bucket_name = bucket_names[0] if bucket_names else ""
+                if bucket_name:
+                    buckets.append(bucket_name)
+        return buckets
+
+    def get_drives_num(self):
+        """
+        获取集群中每个节点的drive数量
+        :return:
+        """
+        drives_num = 0
+        args = 'admin info {} | grep Drives'.format(self.alias)
+        rc, output = self._exec(args)
+        if rc == 0:
+            logger.success("集群Drive信息：{}/*".format(output))
+            drives_nums = re.findall(r"Drives: (\d+)/", output.strip("\n")[0])
+            drives_num = int(drives_nums[0] if drives_nums else 0)
+        return drives_num

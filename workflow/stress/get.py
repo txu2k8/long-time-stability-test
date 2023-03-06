@@ -11,39 +11,40 @@ import os
 from loguru import logger
 
 from utils.util import get_md5_value
-from stress.base_worker import BaseWorker
+from workflow.stress.stress_workflow import BaseStress
 
 
-class GetObject(BaseWorker):
+class GetObject(BaseStress):
     """下载对象"""
 
     def __init__(
             self,
-            tool_type, endpoint, access_key, secret_key, tls, alias,
-            local_path, bucket_prefix, bucket_num=1, depth=1, obj_prefix='', obj_num=1,
-            concurrent=1, multipart=False, duration=0, cover=False, idx_start=0, idx_width=1
+            client_types, endpoint, access_key, secret_key, tls, alias,
+            bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, multipart=False, local_path="",
+            main_concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0,
+            depth=1, duration=0, cover=False,
     ):
         super(GetObject, self).__init__(
-            tool_type, endpoint, access_key, secret_key, tls, alias,
-            local_path, bucket_prefix, bucket_num, depth, obj_prefix, obj_num,
-            concurrent, multipart, duration, cover, idx_start, idx_width
+            client_types, endpoint, access_key, secret_key, tls, alias,
+            bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
+            main_concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start,
+            depth, duration, cover
         )
         pass
 
-    async def worker(self, client, bucket, idx):
+    def worker(self, client, idx):
         """
         下载对象并比较MD5值
         :param client:
-        :param bucket:
         :param idx:
         :return:
         """
         # 准备
-        obj_path = self.obj_path_calc(idx)
+        bucket, obj_path = self.bucket_obj_path_calc(idx)
         local_file_path = os.path.join(self.local_path, '{}_{}'.format(bucket, obj_path.replace('/', '_')))
         disable_multipart = self.disable_multipart_calc()
-        rc, expect_md5 = await client.get_obj_md5(bucket, obj_path)
-        await client.get(bucket, obj_path, local_file_path, disable_multipart)
+        rc, expect_md5 = client.get_obj_md5(bucket, obj_path)
+        client.get(bucket, obj_path, local_file_path, disable_multipart)
         if expect_md5:
             download_md5 = get_md5_value(local_file_path)
             if download_md5 != expect_md5:
@@ -57,4 +58,7 @@ class GetObject(BaseWorker):
             # 未做MD5值校验，删除本地文件
             os.remove(local_file_path)
 
-
+    def run(self):
+        # self.stage_init()
+        # self.stage_prepare()
+        self.stage_main()
