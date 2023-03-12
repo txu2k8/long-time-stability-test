@@ -117,7 +117,7 @@ class VideoWorkflow(WorkflowBase, WorkflowInterface, ABC):
         :return:
         """
         while True:
-            item = await queue.async_get()
+            item = await queue.get()
             await self.worker(*item)
             queue.task_done()
 

@@ -149,7 +149,7 @@ def video_monitor_3(
     vm_obj.run()
 
 
-@app.command(help='视频监控场景测试 - 4，写删均衡测试（模拟波峰波谷）')
+@app.command(help='视频监控场景测试-4，写删均衡测试（模拟波峰波谷）')
 def video_monitor_4(
         endpoint: str = typer.Option(..., help="例：127.0.0.1:9000 or http://127.0.0.1:9000"),
         access_key: str = typer.Option(..., help="ACCESS_KEY"),
