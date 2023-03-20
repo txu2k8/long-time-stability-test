@@ -17,7 +17,7 @@ from config.models import ClientType, MultipartType
 from cli.log import init_logger
 from cli.main import app
 from workflow.video_surveillance.vs_calculate import VSCalc
-from workflow.video_monitor.video_3 import VideoMonitor3
+from workflow.video_surveillance.video_workflow_one_channel import VideoWorkflowOneChannel
 
 
 def init_print(case_id, desc, client_types, video_channel, video_stream, multipart, max_workers):
@@ -52,7 +52,7 @@ def video_surveillance_1(
         multipart: MultipartType = typer.Option(MultipartType.enable.value, help="业务模型：多段上传"),
         max_workers: int = typer.Option(1000, min=1, help="业务模型：写删阶段最大并发数"),
         prepare_channel_num: int = typer.Option(0, min=0, help="业务模型：预置阶段,视频写入路数,默认=channel_num"),
-        obj_size: int = typer.Option(1, min=1, help="业务模型：对象大小,默认128MB"),
+        obj_size: int = typer.Option(128, min=1, help="业务模型：对象大小,默认128MB"),
 
         # 自定义设置
         bucket_prefix: str = typer.Option('bucket', help="自定义：桶名称前缀"),
@@ -80,13 +80,9 @@ def video_surveillance_1(
     vs_calc.calc()
     vs_info = vs_calc.vs_info
 
-    vm_obj = VideoMonitor3(
+    vm_obj = VideoWorkflowOneChannel(
         client_types, endpoint, access_key, secret_key, tls, alias,
-        bucket_prefix, bucket_num=vs_info.channel_num,
-        obj_prefix=obj_prefix, obj_num=vs_info.obj_num, multipart=vs_info.multipart, local_path=local_path,
-        main_concurrent=vs_info.main_concurrent, prepare_concurrent=vs_info.prepare_concurrent,
-        max_workers=vs_info.main_max_workers,
-        idx_width=vs_info.idx_width, idx_put_start=vs_info.idx_put_start, idx_del_start=vs_info.idx_del_start,
-        obj_num_per_day=vs_info.obj_num_pd
+        channel_id=11, bitstream=4, local_path=local_path, obj_num=100, obj_size=obj_size, multipart=multipart,
+        bucket_prefix=bucket_prefix, obj_prefix=obj_prefix, max_workers=2,
     )
     vm_obj.run()
