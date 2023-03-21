@@ -39,8 +39,8 @@ def init_print(case_id, desc, client_types, video_channel, video_stream, multipa
     logger.log('DESC', '*' * 48)
 
 
-@app.command(help='视频监控场景测试-1: 写删均衡', hidden=False)
-def video_surveillance_1(
+@app.command(help='视频监控场景测试: 写删均衡', hidden=False)
+def video_surveillance(
         # 存储 环境信息
         endpoint: str = typer.Option(..., help="环境信息：例 127.0.0.1:9000 or http://127.0.0.1:9000"),
         access_key: str = typer.Option(..., help="环境信息：ACCESS_KEY"),
