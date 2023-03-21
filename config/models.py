@@ -35,3 +35,4 @@ class FileInfo(BaseModel):
     md5: Text = ''
     tags: Text = ''  # "key1=value1&key2=value2"
     attr: Text = ''  # "key1=value1;key2=value2"
+    rb_data: bytes = b''  # rb模式读取的 文件内容

@@ -262,3 +262,90 @@ class WorkflowBase(object):
             self.start_datetime = datetime_now
             self.elapsed_sum = 0
             self.sum_count = 0
+
+
+class InitDB(object):
+    """初始化数据库"""
+    def __init__(self):
+        # 初始化数据库
+        self.db_obj_table_name = "obj_info"
+        self.db_stat_table_name = "stat_info"
+        self.sqlite3_opt = Sqlite3Operation(db_path=DB_SQLITE3, show=False)
+
+        # 统计信息
+        self.start_datetime = datetime.datetime.now()
+        self.sum_count = 0
+        self.elapsed_sum = 0
+
+    def db_init(self):
+        """
+        初始化数据库：建表
+        :return:
+        """
+        logger.log("STAGE", "init->初始化对象数据表，table={}".format(self.db_obj_table_name))
+        sql_create_obj_table = '''CREATE TABLE IF NOT EXISTS `{}` (
+                                                      `id` INTEGER PRIMARY KEY,
+                                                      `idx` varchar(20) NOT NULL,
+                                                      `date` varchar(20) NOT NULL,
+                                                      `bucket` varchar(100) NOT NULL,
+                                                      `obj` varchar(500) NOT NULL,
+                                                      `md5` varchar(100) DEFAULT NULL,
+                                                      `put_rc` int(11) DEFAULT NULL,
+                                                      `put_elapsed` int(11) DEFAULT NULL,
+                                                      `del_rc` int(11) DEFAULT NULL,
+                                                      `is_delete` BOOL DEFAULT FALSE,
+                                                      `queue_size` int(11) DEFAULT NULL
+                                                    )
+                                                    '''.format(self.db_obj_table_name)
+        self.sqlite3_opt.create_table(sql_create_obj_table)
+
+        logger.log("STAGE", "init->初始化统计数据表，table={}".format(self.db_stat_table_name))
+        sql_create_stat_table = '''CREATE TABLE IF NOT EXISTS `{}` (
+                                                              `id` INTEGER PRIMARY KEY,
+                                                              `ops` int(11) DEFAULT NULL,
+                                                              `elapsed_avg` int(11) DEFAULT NULL,
+                                                              `queue_size_avg` int(11) DEFAULT NULL,
+                                                              `datetime` DATETIME
+                                                            )
+                                                            '''.format(self.db_stat_table_name)
+        self.sqlite3_opt.create_table(sql_create_stat_table)
+
+    def db_obj_insert(self, str_idx, str_date, bucket, obj_path, md5='', put_rc=0, put_elapsed=0, queue_size=0):
+        insert_sql = '''
+        INSERT INTO {} ( idx, date, bucket, obj, md5, put_rc, put_elapsed, queue_size ) values (?, ?, ?, ?, ?, ?, ?, ?)
+        '''.format(self.db_obj_table_name)
+        data = [(str_idx, str_date, bucket, obj_path, md5, put_rc, put_elapsed, queue_size)]
+        self.sqlite3_opt.insert_update_delete(insert_sql, data)
+
+    def db_obj_update_delete_flag(self, str_idx):
+        update_sql = '''UPDATE {} SET is_delete = true WHERE idx = ? '''.format(self.db_obj_table_name)
+        data = [(str_idx,)]
+        self.sqlite3_opt.insert_update_delete(update_sql, data)
+
+    def db_obj_delete(self, str_idx):
+        delete_sql = '''DELETE FROM {} WHERE idx = ?'''.format(self.db_obj_table_name)
+        data = [(str_idx,)]
+        self.sqlite3_opt.insert_update_delete(delete_sql, data)
+
+    def db_stat_insert(self, ops, elapsed_avg, queue_size_avg=0):
+        insert_sql = '''
+                INSERT INTO {} ( ops, elapsed_avg, queue_size_avg, datetime ) values (?, ?, ?, ?)
+                '''.format(self.db_stat_table_name)
+        date_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        data = [(ops, elapsed_avg, queue_size_avg, date_time)]
+        self.sqlite3_opt.insert_update_delete(insert_sql, data)
+
+    def statistics(self, elapsed):
+        self.elapsed_sum += elapsed
+        self.sum_count += 1
+        datetime_now = datetime.datetime.now()
+        elapsed_seconds = (datetime_now - self.start_datetime).seconds
+        if elapsed_seconds >= 60:
+            # 每分钟统计一次平均值
+            ops = round(self.sum_count / elapsed_seconds, 3)
+            elapsed_avg = round(self.elapsed_sum / self.sum_count, 3)
+            logger.info("OPS={}, elapsed_avg={}".format(ops, elapsed_avg))
+            self.db_stat_insert(ops, elapsed_avg)
+            self.start_datetime = datetime_now
+            self.elapsed_sum = 0
+            self.sum_count = 0

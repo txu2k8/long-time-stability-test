@@ -9,14 +9,18 @@
 """
 
 import sys
+import time
 from datetime import datetime
 from loguru import logger
 import typer
+import asyncio
 
-from config.models import ClientType, MultipartType
-from cli.log import init_logger
 from cli.main import app
-from workflow.video_surveillance.vs_calculate import VSCalc
+from cli.log import init_logger
+from utils.util import get_local_files
+from config.models import ClientType, MultipartType
+from workflow.workflow_base import init_clients, InitDB
+from workflow.video_surveillance.calculate import VSCalc
 from workflow.video_surveillance.video_workflow_one_channel import VideoWorkflowOneChannel
 
 
@@ -47,10 +51,15 @@ def video_surveillance_1(
         # 视频监控 业务模型
         channel_num: int = typer.Option(1, min=1, help="业务模型：视频路数"),
         bitstream: int = typer.Option(4, min=1, help="业务模型：视频码流（单位：Mbps）"),
+        data_life: int = typer.Option(0, min=0, help="业务模型：数据保留期限（单位：天），0-表示自动推算"),
         capacity: int = typer.Option(..., min=1, help="业务模型：可用空间（单位：MB）"),
+        safe_water_level: float = typer.Option(0.9, min=0, help="业务模型：可用空间（单位：MB）"),
         local_path: str = typer.Option(..., help="业务模型：指定源文件路径，随机上传文件"),
+        appendable: bool = typer.Option(False, help="业务模型：追加写模式？"),
+        segments: int = typer.Option(0, min=0, help="业务模型：追加写模式下，一个对象分片进行追加次数数"),
         multipart: MultipartType = typer.Option(MultipartType.enable.value, help="业务模型：多段上传"),
         max_workers: int = typer.Option(1000, min=1, help="业务模型：写删阶段最大并发数"),
+
         prepare_channel_num: int = typer.Option(0, min=0, help="业务模型：预置阶段,视频写入路数,默认=channel_num"),
         obj_size: int = typer.Option(128, min=1, help="业务模型：对象大小,默认128MB"),
 
@@ -58,9 +67,7 @@ def video_surveillance_1(
         bucket_prefix: str = typer.Option('bucket', help="自定义：桶名称前缀"),
         obj_prefix: str = typer.Option('data', help="自定义：对象名前缀"),
         idx_width: int = typer.Option(11, min=1, help="自定义：对象序号长度，3=>001"),
-        idx_put_start: int = typer.Option(1, min=1, help="自定义：上传对象序号起始值"),
-        idx_del_start: int = typer.Option(1, min=1, help="自定义：删除对象序号起始值"),
-        prepare_concurrent: int = typer.Option(1, min=1, help="自定义：预置数据时每秒并行数"),
+        idx_start: int = typer.Option(1, min=1, help="自定义：上传对象序号起始值"),
 
         # 其他
         trace: bool = typer.Option(False, help="print TRACE level log"),
@@ -68,21 +75,36 @@ def video_surveillance_1(
         desc: str = typer.Option('', help="测试描述"),
 ):
     client_types = [ClientType.MC]
-    init_logger(prefix='video_3', case_id=case_id, trace=trace)
+    init_logger(prefix='video', case_id=case_id, trace=trace)
     init_print(case_id, desc, client_types, channel_num, bitstream, multipart, max_workers)
 
-    vs_calc = VSCalc(channel_num, bitstream, capacity, prepare_channel_num)
-    vs_calc.vs_info.obj_size = obj_size
-    vs_calc.vs_info.idx_width = idx_width
-    vs_calc.vs_info.idx_put_start = idx_put_start
-    vs_calc.vs_info.idx_del_start = idx_del_start
-    vs_calc.vs_info.prepare_concurrent = prepare_concurrent
-    vs_calc.calc()
-    vs_info = vs_calc.vs_info
+    # 计算分析业务需求，打印业务模型
+    vs_info = VSCalc(
+        channel_num, bitstream, capacity, data_life, safe_water_level,
+        prepare_channel_num, obj_size, segments, appendable, multipart,
+        bucket_prefix, obj_prefix, idx_width, idx_start
+    ).vs_info
+    time.sleep(3)
 
-    vm_obj = VideoWorkflowOneChannel(
-        client_types, endpoint, access_key, secret_key, tls, alias,
-        channel_id=11, bitstream=4, local_path=local_path, obj_num=100, obj_size=obj_size, multipart=multipart,
-        bucket_prefix=bucket_prefix, obj_prefix=obj_prefix, max_workers=2,
-    )
-    vm_obj.run()
+    # 初始化客户端
+    clients_info = init_clients(client_types, endpoint, access_key, secret_key, tls, alias)
+    client = clients_info[ClientType.MC.value]
+
+    # 准备源数据文件池 字典
+    file_list = get_local_files(local_path, with_rb_data=appendable)
+
+    # 初始化数据库
+    InitDB().db_init()
+
+    async def run():
+        tasks = []
+        for channel_id in range(vs_info.channel_num):
+            vm_obj = VideoWorkflowOneChannel(client, file_list, channel_id, vs_info)
+            tasks.append(asyncio.ensure_future(vm_obj.workflow()))
+        results = await asyncio.gather(*tasks)
+        for result in results:
+            print(f"Task result:{result}")
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run())
+    loop.close()

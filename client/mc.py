@@ -98,10 +98,11 @@ class MClient(ClientInterface, ABC):
     def set_core_loglevel(self, loglevel):
         return self.admin_config_set('loglevel', f'loglevel={loglevel}')
 
-    def mb(self, bucket, *args, **kwargs):
-        uc_args = 'mb --ignore-existing {}/{}'.format(self.alias, bucket)
+    def mb(self, bucket, appendable=False, *args, **kwargs):
+        mc_args = 'mb --ignore-existing --appendable' if appendable else 'mb --ignore-existing'
+        mc_args = f'{mc_args} {self.alias}/{bucket}'
 
-        rc, output = self._exec(uc_args)
+        rc, output = self._exec(mc_args)
         if rc == 0:
             logger.success("桶创建成功! - {}".format(bucket))
         else:

@@ -14,13 +14,11 @@ from abc import ABC
 import arrow
 from loguru import logger
 
-from utils.util import get_local_files, zfill
-from config.models import ClientType
-
-from config import DB_SQLITE3
-from pkgs.sqlite_opt import Sqlite3Operation
-from workflow.workflow_base import init_clients
+from utils.util import zfill
+from client.s3_api import S3API
+from workflow.workflow_base import InitDB
 from workflow.workflow_interface import WorkflowInterface
+from workflow.video_surveillance.calculate import VSInfo
 
 
 class VideoWorkflowOneChannel(WorkflowInterface, ABC):
@@ -31,81 +29,27 @@ class VideoWorkflowOneChannel(WorkflowInterface, ABC):
     3、Main阶段：测试执行 上传、删除等
     """
 
-    def __init__(
-            self,
-            client_types, endpoint, access_key, secret_key, tls, alias,
-            channel_id, bitstream, local_path, obj_num, obj_size=128, multipart=False,
-            bucket_prefix='vc-', obj_prefix='data-', max_workers=2,
-
-    ):
-        self.client_types = client_types
-        self.endpoint = endpoint
-        self.access_key = access_key
-        self.secret_key = secret_key
-        self.tls = tls
-        self.alias = alias
+    def __init__(self, client, file_list, channel_id, vs_info: VSInfo):
+        # 初始化客户端
+        self.client = client
+        # 资源数据文件池 字典
+        self.file_list = file_list
 
         # 输入必填项：原始需求
         self.channel_id = channel_id  # 视频ID
-        self.bitstream = bitstream  # 码流（Mbps）
-        self.local_path = local_path  # 本地文件的路径  dir
-        self.obj_num = obj_num  # 一路视频需要保存对象数，由外部计算输入
-        self.obj_size = obj_size  # 单个对象大小（MB）
-        self.multipart = multipart  # 是否多段上传
+        self.vs_info = vs_info
 
         # 自定义
-        self.bucket = f'{bucket_prefix}{channel_id}'
-        self.obj_prefix = obj_prefix
-        self.max_workers = max_workers
+        self.bucket = f'{vs_info.bucket_prefix}{channel_id}'
 
         # 自定义常量
-        self.idx_width = 11  # 对象idx字符宽度，例如：3 --> 003
         self.depth = 1  # 默认使用对象目录深度=1，即不建子目录
         self.start_date = "2023-01-01"  # 写入起始日期
-
-        # 准备源数据文件池 字典
-        self.file_list = get_local_files(local_path)
 
         # 统计信息
         self.start_datetime = datetime.datetime.now()
         self.sum_count = 0
         self.elapsed_sum = 0
-
-        # 初始化数据库
-        self.db_obj_table_name = "obj_info"
-        self.db_stat_table_name = "stat_info"
-        self.sqlite3_opt = Sqlite3Operation(db_path=DB_SQLITE3, show=False)
-
-        # 初始化客户端
-        self.clients_info = init_clients(
-            self.client_types, self.endpoint, self.access_key, self.secret_key, self.tls, self.alias)
-        self.client_list = list(self.clients_info.values())
-        self.client = self.clients_info[ClientType.MC.value]
-
-        # 待计算数据
-        self.time_interval = 256  # 产生一个对象的时间间隔
-        self.obj_num_per_day = 10
-        self.idx_start = 0
-        # 计算
-        self.io_calc()
-        logger.info(self.time_interval)
-
-    def io_calc(self):
-        """
-        数据模型计算
-        :return:
-        """
-        # 带宽（MB）
-        bandwidth = self.bitstream / 8
-
-        # 每写入一个对象间隔时间（秒）
-        self.time_interval = self.obj_size / bandwidth
-
-        # 每天需要写入的数据量（MB） = 带宽/s * 1天
-        size_pd = bandwidth * 60 * 60 * 24
-
-        # 每天需要写入的对象数 = 每日数据量 / 对象大小
-        self.obj_num_per_day = int(size_pd / self.obj_size)
 
     @staticmethod
     def date_str_calc(start_date, date_step=1):
@@ -138,8 +82,8 @@ class VideoWorkflowOneChannel(WorkflowInterface, ABC):
         :param date_prefix:按日期写不同文件夹
         :return:
         """
-        obj_prefix = self._obj_prefix_calc(self.obj_prefix, self.depth, date_prefix)
-        obj_path = obj_prefix + zfill(idx, width=self.idx_width)
+        obj_prefix = self._obj_prefix_calc(self.vs_info.obj_prefix, self.depth, date_prefix)
+        obj_path = obj_prefix + zfill(idx, width=self.vs_info.idx_width)
         return obj_path
 
     def obj_path_calc(self, idx):
@@ -149,7 +93,7 @@ class VideoWorkflowOneChannel(WorkflowInterface, ABC):
         :return:
         """
         # 计算对象路径
-        date_step = idx // self.obj_num_per_day  # 每日写N个对象，放在一个日期命名的文件夹
+        date_step = idx // self.vs_info.obj_num_pc_pd  # 每日写N个对象，放在一个日期命名的文件夹
         current_date = self.date_str_calc(self.start_date, date_step)
         date_prefix = current_date + '/'
         obj_path = self._obj_path_calc(idx, date_prefix)
@@ -160,53 +104,12 @@ class VideoWorkflowOneChannel(WorkflowInterface, ABC):
         计算 disable_multipart
         :return:
         """
-        if self.multipart == 'enable':
+        if self.vs_info.multipart == 'enable':
             return False
-        elif self.multipart == 'disable':
+        elif self.vs_info.multipart == 'disable':
             return True
         else:
             return random.choice([True, False])
-
-    def db_init(self):
-        """
-        初始化数据库：建表
-        :return:
-        """
-        logger.log("STAGE", "init->初始化对象数据表，table={}".format(self.db_obj_table_name))
-        sql_create_obj_table = '''CREATE TABLE IF NOT EXISTS `{}` (
-                                                      `id` INTEGER PRIMARY KEY,
-                                                      `idx` varchar(20) NOT NULL,
-                                                      `date` varchar(20) NOT NULL,
-                                                      `bucket` varchar(100) NOT NULL,
-                                                      `obj` varchar(500) NOT NULL,
-                                                      `md5` varchar(100) DEFAULT NULL,
-                                                      `put_rc` int(11) DEFAULT NULL,
-                                                      `put_elapsed` int(11) DEFAULT NULL,
-                                                      `del_rc` int(11) DEFAULT NULL,
-                                                      `is_delete` BOOL DEFAULT FALSE,
-                                                      `queue_size` int(11) DEFAULT NULL
-                                                    )
-                                                    '''.format(self.db_obj_table_name)
-        self.sqlite3_opt.create_table(sql_create_obj_table)
-
-        logger.log("STAGE", "init->初始化统计数据表，table={}".format(self.db_stat_table_name))
-        sql_create_stat_table = '''CREATE TABLE IF NOT EXISTS `{}` (
-                                                              `id` INTEGER PRIMARY KEY,
-                                                              `ops` int(11) DEFAULT NULL,
-                                                              `elapsed_avg` int(11) DEFAULT NULL,
-                                                              `queue_size_avg` int(11) DEFAULT NULL,
-                                                              `datetime` DATETIME
-                                                            )
-                                                            '''.format(self.db_stat_table_name)
-        self.sqlite3_opt.create_table(sql_create_stat_table)
-
-    def db_stat_insert(self, ops, elapsed_avg, queue_size_avg=0):
-        insert_sql = '''
-                INSERT INTO {} ( ops, elapsed_avg, queue_size_avg, datetime ) values (?, ?, ?, ?)
-                '''.format(self.db_stat_table_name)
-        date_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        data = [(ops, elapsed_avg, queue_size_avg, date_time)]
-        self.sqlite3_opt.insert_update_delete(insert_sql, data)
 
     def statistics(self, elapsed):
         self.elapsed_sum += elapsed
@@ -218,12 +121,12 @@ class VideoWorkflowOneChannel(WorkflowInterface, ABC):
             ops = round(self.sum_count / elapsed_seconds, 3)
             elapsed_avg = round(self.elapsed_sum / self.sum_count, 3)
             logger.info("OPS={}, elapsed_avg={}".format(ops, elapsed_avg))
-            self.db_stat_insert(ops, elapsed_avg)
+            InitDB().db_stat_insert(ops, elapsed_avg)
             self.start_datetime = datetime_now
             self.elapsed_sum = 0
             self.sum_count = 0
 
-    async def worker(self, client, idx_put):
+    async def worker(self, idx_put):
         """
         worker
         :param client:
@@ -231,33 +134,42 @@ class VideoWorkflowOneChannel(WorkflowInterface, ABC):
         :return:
         """
         # 删除旧数据
-        idx_del = idx_put - self.obj_num
+        idx_del = idx_put - self.vs_info.obj_num_pc
         if idx_del > 0:
             obj_path_del, _ = self.obj_path_calc(idx_del)
-            await client.async_delete(self.bucket, obj_path_del)
+            await self.client.async_delete(self.bucket, obj_path_del)
 
         # 获取待上传的源文件
         src_file = random.choice(self.file_list)
-        disable_multipart = self.disable_multipart_calc()
+
         # 上传
         obj_path, current_date = self.obj_path_calc(idx_put)
-        rc, elapsed = await client.put_without_attr(src_file.full_path, self.bucket, obj_path, disable_multipart,
-                                                    src_file.tags)
+        if self.vs_info.appendable:
+            # 追加写模式  TODO
+            elapsed = await S3API().append_write_async(
+                self.client.endpoint, src_file.full_path, self.bucket, obj_path, 0, src_file.rb_data, self.vs_info.segments
+            )
+        else:
+            disable_multipart = self.disable_multipart_calc()
+            _, elapsed = await self.client.put_without_attr(
+                src_file.full_path, self.bucket, obj_path, disable_multipart, src_file.tags
+            )
         # 统计数据
         self.statistics(elapsed)
 
-    async def producer(self, queue):
+    async def producer(self, queue, interval=1.0):
         """
         main阶段 produce queue队列
         :param queue:
+        :param interval:
         :return:
         """
-        client = self.client_list[0]
-        idx = self.idx_start
+        idx = self.vs_info.idx_put_start
         while True:
-            await queue.put((client, idx))
-            await asyncio.sleep(self.time_interval)  # 每N秒产生一个对象，数据预置阶段控制该时间快速预埋数据
+            await queue.put((idx, ))
+            await asyncio.sleep(interval)  # 每N秒产生一个对象，数据预置阶段控制该时间快速预埋数据
             idx += 1
+            self.vs_info.idx_put_start = idx
 
     async def consumer(self, queue):
         """
@@ -270,44 +182,42 @@ class VideoWorkflowOneChannel(WorkflowInterface, ABC):
             await self.worker(*item)
             queue.task_done()
 
-    def stage_init(self):
+    async def stage_init(self):
         """
         批量创建特定桶
         :return:
         """
         logger.log("STAGE", f"初始化阶段：创建特定桶({self.bucket})、初始化数据库")
-
-        # 开启debug日志
-        # self.set_core_loglevel()
-
-        # 准备桶
-        self.client.mb(self.bucket)
-
-        # 初始化数据库
-        self.db_init()
-
-        logger.log("STAGE", "初始化阶段完成！")
+        self.client.mb(self.bucket, appendable=self.vs_info.appendable)
+        await asyncio.sleep(0)
 
     async def stage_prepare(self):
         """
         批量创建特定对象
         :return:
         """
-        if self.idx_start >= self.obj_num:
+        # 调节多路视频启动时间，使IO均衡平滑到所有时间段  时间段为一个视频文件对象产生间隔
+        sleep_avg = self.vs_info.time_interval / self.vs_info.channel_num
+        sleep_avg = 1 if sleep_avg > 1 else sleep_avg  # 最大sleep 1秒
+        await asyncio.sleep(round(sleep_avg * self.channel_id, 1))
+
+        # idx超过预埋数量，跳过预埋阶段
+        if self.vs_info.idx_put_start >= self.vs_info.obj_num_pc:
             await asyncio.sleep(0)
-            logger.log("STAGE", "数据预埋阶段：bucket={}, obj_num={}，已有数据，跳过预置！".format(self.bucket, self.obj_num))
+            logger.log("STAGE", "数据预埋阶段：跳过！")
             return
 
-        logger.log("STAGE", "数据预埋阶段：bucket={}, obj_num={}".format(self.bucket, self.obj_num))
+        interval = (self.vs_info.channel_num / self.vs_info.prepare_channel_num) * self.vs_info.time_interval  # 按比例调节间隔时间
+        logger.log("STAGE", f"数据预埋阶段：bucket={self.bucket}, obj_num={self.vs_info.obj_num_pc}, interval={interval}")
         queue = asyncio.Queue()
-        # 创建100倍 concurrent 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.max_workers)]
+        # 创建consumer
+        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.vs_info.max_workers)]
 
-        await self.producer(queue)
+        await self.producer(queue, interval=interval)
         await queue.join()
         for c in consumers:
             c.cancel()
-        logger.log("STAGE", "预置对象完成！bucket={}, obj_num={}".format(self.bucket, self.obj_num))
+        logger.log("STAGE", "预置对象完成！bucket={}, obj_num={}".format(self.bucket, self.vs_info.obj_num_pc))
         logger.log("STAGE", "销毁预置阶段consumers！len={}".format(len(consumers)))
         await asyncio.sleep(5)
 
@@ -316,25 +226,29 @@ class VideoWorkflowOneChannel(WorkflowInterface, ABC):
         执行 生产->消费 queue
         :return:
         """
-        logger.log("STAGE", "写删均衡阶段：bucket={}, obj_num={}, ".format(self.bucket, self.obj_num))
+        logger.log("STAGE", f"写删均衡阶段：bucket={self.bucket}, obj_num={self.vs_info.obj_num_pc}, interval={self.vs_info.time_interval}")
 
         queue = asyncio.Queue()
         # 创建 max_workers 数量的consumer
-        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.max_workers)]
+        consumers = [asyncio.ensure_future(self.consumer(queue)) for _ in range(self.vs_info.max_workers)]
 
-        await self.producer(queue)
+        await self.producer(queue, interval=self.vs_info.time_interval)
         await queue.join()
         for c in consumers:
             c.cancel()
 
+    async def workflow(self):
+        await self.stage_init()
+        await self.stage_prepare()
+        await self.stage_main()
+
     def run(self):
         """
-        执行 生产->消费 queue
+        单路视频直接运行： 生产->消费 queue
         :return:
         """
-        self.stage_init()
-
         loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.stage_init())
         loop.run_until_complete(self.stage_prepare())
 
         asyncio.ensure_future(self.stage_main())

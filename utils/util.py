@@ -45,10 +45,11 @@ def md5sum(file_path):
     return rc, md5
 
 
-def get_local_files(local_path) -> List[FileInfo]:
+def get_local_files(local_path, with_rb_data=False) -> List[FileInfo]:
     """
     获取本地文件路径下所以文件及其MD5
     :param local_path:
+    :param with_rb_data:
     :return:
     """
     file_list = []
@@ -65,6 +66,9 @@ def get_local_files(local_path) -> List[FileInfo]:
                 attr="filename={};md5={};type={}".format(filename, md5, file_type),
                 tags="md5={}".format(md5),  # filename={}&md5={}&type={}
             )
+            if with_rb_data:
+                with open(file_full_path, "rb") as f:
+                    file_info.rb_data = f.read()
             file_list.append(file_info)
     return file_list
 
