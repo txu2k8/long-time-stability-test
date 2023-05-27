@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Text
+from typing import Text, List
 from pydantic import BaseModel
 
 
@@ -26,6 +26,13 @@ class MultipartType(str, Enum):
     random = 'random'  # 随机
 
 
+# 文件分片信息
+class FileSegmentInfo(BaseModel):
+    position: int = 0
+    size: int = 0
+    data: bytes = b''
+
+
 # 文件信息
 class FileInfo(BaseModel):
     """文件信息 - 数据模型"""
@@ -35,4 +42,7 @@ class FileInfo(BaseModel):
     md5: Text = ''
     tags: Text = ''  # "key1=value1&key2=value2"
     attr: Text = ''  # "key1=value1;key2=value2"
-    rb_data: bytes = b''  # rb模式读取的 文件内容
+    size: int = 0  # 数据大小，字节数
+    size_human: Text = ""  # 数据大小，转换为可读的，如：200MB
+    segments: int = 1  # 数据分段读取
+    rb_data_list: List[FileSegmentInfo] = []  # rb模式读取的 文件内容，按分段顺序保存

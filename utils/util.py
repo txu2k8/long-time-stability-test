@@ -9,7 +9,7 @@ from typing import List
 from loguru import logger
 from pypinyin import lazy_pinyin
 
-from config.models import FileInfo
+from config.models import FileSegmentInfo, FileInfo
 
 
 def get_md5_value(file_path):
@@ -45,11 +45,12 @@ def md5sum(file_path):
     return rc, md5
 
 
-def get_local_files(local_path, with_rb_data=False) -> List[FileInfo]:
+def get_local_files(local_path, with_rb_data=False, segments=1) -> List[FileInfo]:
     """
     获取本地文件路径下所以文件及其MD5
     :param local_path:
     :param with_rb_data:
+    :param segments:
     :return:
     """
     file_list = []
@@ -65,10 +66,18 @@ def get_local_files(local_path, with_rb_data=False) -> List[FileInfo]:
                 md5=md5,
                 attr="filename={};md5={};type={}".format(filename, md5, file_type),
                 tags="md5={}".format(md5),  # filename={}&md5={}&type={}
+                segments=segments,
             )
+            file_info.size = os.path.getsize(file_full_path)
+            file_info.size_human = size_convert_byte2str(file_info.size)
             if with_rb_data:
                 with open(file_full_path, "rb") as f:
-                    file_info.rb_data = f.read()
+                    file_s_info = FileSegmentInfo(
+                        position=0,
+                        size=file_info.size,
+                        data=f.read()
+                    )
+                    file_info.rb_data_list = [file_s_info]
             file_list.append(file_info)
     return file_list
 
@@ -220,6 +229,22 @@ def seconds_convert_str(seconds):
     h, m = divmod(m, 60)
     d, h = divmod(h, 24)
     return "%dd, %02d:%02d:%02d" % (d, h, m, s)
+
+
+def split_list_n_list(origin_list, n):
+    """
+    把原始列表切分N等份
+    :param origin_list:
+    :param n:
+    :return:
+    """
+    if len(origin_list) % n == 0:
+        cnt = len(origin_list) // n
+    else:
+        cnt = len(origin_list) // n + 1
+
+    for i in range(0, n):
+        yield origin_list[i*cnt:(i+1)*cnt]
 
 
 if __name__ == "__main__":

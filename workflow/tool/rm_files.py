@@ -27,7 +27,7 @@ Linux下删除海量日志文件，达数十万个文件
 import os
 import subprocess
 from loguru import logger
-from client.mc import MClient
+from client.s3.mc import MClient
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 

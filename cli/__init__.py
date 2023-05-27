@@ -10,9 +10,10 @@
 from cli import stress
 from cli import check
 from cli import tools
-from cli import video_surveillance
+from cli import video_s3
+from cli import video_fs
 
 
 __all__ = [
-    stress, check, tools, video_surveillance
+    stress, check, tools, video_s3, video_fs
 ]

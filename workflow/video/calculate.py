@@ -5,14 +5,14 @@
 @file:vs_workflow
 @time:2023/03/16
 @email:tao.xu2008@outlook.com
-@description: 视频监控场景 需求分析计算
+@description: 视频监控场景 - 需求分析计算
 """
 from typing import Text
 from pydantic import BaseModel
 from loguru import logger
 
 
-class VSBaseInfo(BaseModel):
+class RequirementInfo(BaseModel):
     """视频监控 - 原始需求模型"""
     # 原始需求模型
     channel_num: int = 0  # 视频路数
@@ -26,15 +26,15 @@ class VSBaseInfo(BaseModel):
     safe_water_capacity: int = 0  # MB，默认安全水位容量
 
     appendable: bool = False  # 追加写
-    multipart: Text = 'enable'  # 多段上传
+    disable_multipart: bool = False  # 对象：非多段上传
 
 
-class VSDataInfo(BaseModel):
-    """视频监控 - 业务模型"""
+class DataModelInfo(BaseModel):
+    """视频监控 - 数据业务模型"""
     # 需求分解 --> 数据模型
     bandwidth: int = 0
     bucket_num: int = 1  # 桶数
-    obj_num: int = 0  # 总对象数,对象平均分配到每个桶
+    obj_num: int = 0  # 总文件数,文件平均分配到每个桶
     obj_num_pd: int = 0  # 每天需要写入的对象数量
     obj_num_pc: int = 0  # 每路视频需要保存的对象数量
     obj_num_pc_pd: int = 0  # 每路视频每天需要写入的对象数量
@@ -45,17 +45,17 @@ class VSDataInfo(BaseModel):
     max_workers: int = 1  # 写删阶段最大worker数
 
 
-class VSCustomizeInfo(BaseModel):
+class CustomizeInfo(BaseModel):
     """视频监控 - 自定义数据模型"""
     prepare_channel_num: int = 0  # 数据预置阶段,写入视频路数, 0 ==> channel_num
-    bucket_prefix: Text = "bucket-"  # 桶前缀
-    obj_prefix: Text = "data-"  # 对象前缀
+    root_prefix: Text = "video-"  # 桶前缀
+    file_prefix: Text = "data-"  # 对象/文件前缀
     idx_width: int = 11  # 对象序号长度，3=>001
     idx_put_start: int = 1  # 上传对象序号起始值
     idx_del_start: int = 1  # 删除对象序号起始值
 
 
-class VSInfo(VSBaseInfo, VSDataInfo, VSCustomizeInfo):
+class VSInfo(RequirementInfo, DataModelInfo, CustomizeInfo):
     """视频监控 - 模型"""
     pass
 
@@ -70,7 +70,7 @@ description_vs = {
     "safe_water_level": "安全水位",
     "safe_water_capacity": "安全水位容量",
     "appendable": "追加写模式？",
-    "multipart": "多段上传？",
+    "disable_multipart": "非多段上传？",
 
     "bandwidth": "带宽(MB/s)",
     "bucket_num": "桶数",
@@ -85,8 +85,8 @@ description_vs = {
     "max_workers": "写删阶段最大worker数",
 
     "prepare_channel_num": "预置阶段视频路数",
-    "bucket_prefix": "桶前缀",
-    "obj_prefix": "对象前缀",
+    "root_prefix": "桶前缀",
+    "file_prefix": "对象前缀",
     "idx_width": "对象序号长度，3=>001",
     "idx_put_start": "上传对象序号起始值",
     "idx_del_start": "删除对象序号起始值",
@@ -97,8 +97,8 @@ class VSCalc(object):
     """基于视频路数、视频码流 计算对应的测试数据模型"""
 
     def __init__(self, channel_num, bitstream, capacity, data_life=0, safe_water_level=0.9,
-                 prepare_channel_num=0, obj_size=128, segments=1, appendable=False, multipart='enable',
-                 bucket_prefix="bc-", obj_prefix="data-", idx_width=11, idx_start=1):
+                 prepare_channel_num=0, obj_size=128, segments=1, appendable=False, disable_multipart=False,
+                 root_prefix="bc-", file_prefix="data-", idx_width=11, idx_start=1):
         self.channel_num = channel_num
         self.bitstream = bitstream
         self.capacity = capacity
@@ -116,7 +116,7 @@ class VSCalc(object):
             total_capacity=capacity,
             safe_water_level=safe_water_level,
             safe_water_capacity=capacity * safe_water_level,
-            multipart=multipart,
+            disable_multipart=disable_multipart,
             appendable=appendable,
 
             # bandwidth
@@ -131,8 +131,8 @@ class VSCalc(object):
             # max_workers
 
             prepare_channel_num=self.prepare_channel_num,
-            bucket_prefix=bucket_prefix,
-            obj_prefix=obj_prefix,
+            root_prefix=root_prefix,
+            file_prefix=file_prefix,
             idx_width=idx_width,
             idx_put_start=idx_start,
             # idx_del_start
@@ -146,19 +146,19 @@ class VSCalc(object):
         """
         logger.info("{0} 原始需求 {0}".format("-"*30))
         dict_vs_info = dict(self.vs_info)
-        for k in VSBaseInfo().dict().keys():
+        for k in RequirementInfo().dict().keys():
             desc = description_vs[k]
             v = dict_vs_info[k]
             logger.info("{desc:<{fl}}\t: {v:<}".format(desc=desc, fl=20-len(desc.encode('GBK'))+len(desc), v=v))
 
         logger.info("{0} 数据模型 {0}".format("-" * 30))
-        for k in VSDataInfo().dict().keys():
+        for k in DataModelInfo().dict().keys():
             desc = description_vs[k]
             v = dict_vs_info[k]
             logger.info("{desc:<{fl}}\t: {v:<}".format(desc=desc, fl=36-len(desc.encode('GBK'))+len(desc), v=v))
 
         logger.info("{0} 自定义 {0}".format("-" * 30))
-        for k in VSCustomizeInfo().dict().keys():
+        for k in CustomizeInfo().dict().keys():
             desc = description_vs[k]
             v = dict_vs_info[k]
             logger.info("{desc:<{fl}}\t: {v:<}".format(desc=desc, fl=36 - len(desc.encode('GBK')) + len(desc), v=v))

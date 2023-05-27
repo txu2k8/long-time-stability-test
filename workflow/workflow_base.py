@@ -18,9 +18,9 @@ from config.models import ClientType
 from config import DB_SQLITE3
 from pkgs.sqlite_opt import Sqlite3Operation
 from utils.util import zfill
-from client.mc import MClient
-from client.s3cmd import S3CmdClient
-from client.client_interface import ClientInterface
+from client.s3.mc import MClient
+from client.s3.s3cmd import S3CmdClient
+from client.s3.s3_client_interface import ClientInterface
 
 
 def init_clients(client_types: List[Text], endpoint, access_key, secret_key, tls, alias='play'):

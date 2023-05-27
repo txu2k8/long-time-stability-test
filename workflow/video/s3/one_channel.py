@@ -2,10 +2,10 @@
 # -*- coding:utf-8 _*-
 """
 @author:TXU
-@file:video_workflow_one_channel.py
+@file:one_channel.py
 @time:2022/09/28
 @email:tao.xu2008@outlook.com
-@description: 视频监控场景测试 - 模拟一路视频数据流
+@description: 视频监控场景测试 - 对象存储 - 模拟一路视频数据流
 """
 import random
 import datetime
@@ -15,13 +15,13 @@ import arrow
 from loguru import logger
 
 from utils.util import zfill
-from client.s3_api import S3API
+from client.s3.s3_api import S3API
 from workflow.workflow_base import InitDB
 from workflow.workflow_interface import WorkflowInterface
-from workflow.video_surveillance.calculate import VSInfo
+from workflow.video.calculate import VSInfo
 
 
-class VideoWorkflowOneChannel(WorkflowInterface, ABC):
+class S3VideoWorkflowOneChannel(WorkflowInterface, ABC):
     """
     视频监控场景测试 - 基类（支持追加写）
     1、init阶段：新建桶，初始化数据库用于存储写入的对象路径
@@ -40,7 +40,7 @@ class VideoWorkflowOneChannel(WorkflowInterface, ABC):
         self.vs_info = vs_info
 
         # 自定义
-        self.bucket = f'{vs_info.bucket_prefix}{channel_id}'
+        self.bucket = f'{vs_info.root_prefix}{channel_id}'
 
         # 自定义常量
         self.depth = 1  # 默认使用对象目录深度=1，即不建子目录
@@ -82,7 +82,7 @@ class VideoWorkflowOneChannel(WorkflowInterface, ABC):
         :param date_prefix:按日期写不同文件夹
         :return:
         """
-        obj_prefix = self._obj_prefix_calc(self.vs_info.obj_prefix, self.depth, date_prefix)
+        obj_prefix = self._obj_prefix_calc(self.vs_info.file_prefix, self.depth, date_prefix)
         obj_path = obj_prefix + zfill(idx, width=self.vs_info.idx_width)
         return obj_path
 
@@ -147,7 +147,7 @@ class VideoWorkflowOneChannel(WorkflowInterface, ABC):
         if self.vs_info.appendable:
             # 追加写模式  TODO
             elapsed = await S3API().append_write_async(
-                self.client.endpoint, src_file.full_path, self.bucket, obj_path, 0, src_file.rb_data, self.vs_info.segments
+                self.client.endpoint, src_file.full_path, self.bucket, obj_path, 0, src_file.rb_data_list[0][1], self.vs_info.segments
             )
         else:
             disable_multipart = self.disable_multipart_calc()

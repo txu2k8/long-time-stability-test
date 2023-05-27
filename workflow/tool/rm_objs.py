@@ -8,7 +8,7 @@
 @description: 基于桶 删除桶中所有对象
 """
 from loguru import logger
-from client.mc import MClient
+from client.s3.mc import MClient
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 

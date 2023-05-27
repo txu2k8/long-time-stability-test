@@ -2,11 +2,15 @@
 # -*- coding:utf-8 -*-
 """
 @author:TXU
-@file:__init__.py
+@file:flags
 @time:2023/5/27
 @email:tao.xu2008@outlook.com
-@description: 视频监控场景测试 - workflow
+@description: 
 """
+import click
+
+click.option()
+
 
 if __name__ == '__main__':
     pass

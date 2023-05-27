@@ -17,7 +17,7 @@ from loguru import logger
 import asyncio
 import subprocess
 
-from client.client_interface import ClientInterface
+from client.s3.s3_client_interface import ClientInterface
 
 # --- OS constants
 POSIX = os.name == "posix"
