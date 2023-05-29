@@ -21,7 +21,7 @@ from utils.util import get_local_files
 from config.models import ClientType, MultipartType
 from workflow.workflow_base import init_clients, InitDB
 from workflow.video.calculate import VSCalc
-from workflow.video.s3.one_channel import S3VideoWorkflowOneChannel
+from workflow.video.s3.multi_channel import multi_channel_run
 
 
 def init_print(case_id, desc, client_types, video_channel, video_stream, multipart, max_workers):
@@ -69,6 +69,12 @@ def video_s3(
         obj_prefix: str = typer.Option('data', help="自定义：对象名前缀"),
         idx_width: int = typer.Option(11, min=1, help="自定义：对象序号长度，3=>001"),
         idx_start: int = typer.Option(1, min=1, help="自定义：上传对象序号起始值"),
+        skip_stage_init: bool = typer.Option(False, help="自定义：跳过 init 阶段"),
+        write_only: bool = typer.Option(False, help="自定义：只写入，不删除"),
+        delete_immediately: bool = typer.Option(False, help="自定义：写入后，立即删除上一个"),
+        single_root: bool = typer.Option(False, help="自定义：单根目录模式？"),
+        single_root_name: str = typer.Option('video', help="自定义：单根目录时，根目录名称"),
+        process_workers: int = typer.Option(8, min=1, help="自定义：多进程运行协程，进程数"),
 
         # 其他
         trace: bool = typer.Option(False, help="print TRACE level log"),
@@ -97,15 +103,15 @@ def video_s3(
     # 初始化数据库
     InitDB().db_init()
 
-    async def run():
-        tasks = []
-        for channel_id in range(vs_info.channel_num):
-            vm_obj = S3VideoWorkflowOneChannel(client, file_list, channel_id, vs_info)
-            tasks.append(asyncio.ensure_future(vm_obj.workflow()))
-        results = await asyncio.gather(*tasks)
-        for result in results:
-            print(f"Task result:{result}")
+    # 单桶模式，只创建一次桶
+    if single_root:
+        client.mb(single_root_name, appendable=vs_info.appendable)
+        skip_stage_init = True
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(run())
-    loop.close()
+    multi_channel_run(
+        channel_num, process_workers,
+        client=client, file_info=file_list[0], vs_info=vs_info,
+        skip_stage_init=skip_stage_init, write_only=write_only, delete_immediately=delete_immediately,
+        single_root=single_root, single_root_name=single_root_name,
+        trace=trace
+    )

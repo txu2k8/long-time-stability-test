@@ -18,6 +18,10 @@ from loguru import logger
 
 class S3API(object):
     """S3 REST API接口请求访问"""
+    def __init__(self, endpoint, access_key, secret_key):
+        self.endpoint = endpoint
+        self.access_key = access_key
+        self.secret_key = secret_key
 
     @staticmethod
     def sign(key, msg):

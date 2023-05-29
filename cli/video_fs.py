@@ -9,17 +9,13 @@
 """
 
 import sys
-import time
 from datetime import datetime
 from loguru import logger
 import typer
-import asyncio
 
 from cli.main import app
 from cli.log import init_logger
 from utils.util import get_local_files
-from config.models import MultipartType
-from workflow.workflow_base import InitDB
 from workflow.video.calculate import VSCalc
 from workflow.video.fs.multi_channel import multi_channel_run
 
@@ -51,20 +47,20 @@ def video_fs(
         safe_water_level: float = typer.Option(0.9, min=0, help="业务模型：可用空间（单位：MB）"),
         local_path: str = typer.Option(..., help="业务模型：指定源文件路径，随机上传文件"),
         appendable: bool = typer.Option(False, help="业务模型：追加写模式？"),
-        segments: int = typer.Option(1, min=1, help="业务模型：追加写模式下，一个对象分片进行追加次数数"),
+        segments: int = typer.Option(1, min=1, help="业务模型：追加写模式下，一个文件分片进行追加次数数"),
         max_workers: int = typer.Option(2, min=1, help="业务模型：每路视频最大并发数"),
         prepare_channel_num: int = typer.Option(0, min=0, help="业务模型：预置阶段,视频写入路数,默认=channel_num"),
-        obj_size: int = typer.Option(128, min=1, help="业务模型：对象大小,默认128MB"),
+        obj_size: int = typer.Option(128, min=1, help="业务模型：文件大小,默认128MB"),
 
         # 自定义设置
         bucket_prefix: str = typer.Option('bucket', help="自定义：桶名称前缀"),
-        obj_prefix: str = typer.Option('data', help="自定义：对象名前缀"),
-        idx_width: int = typer.Option(11, min=1, help="自定义：对象序号长度，3=>001"),
-        idx_start: int = typer.Option(1, min=1, help="自定义：上传对象序号起始值"),
+        obj_prefix: str = typer.Option('data', help="自定义：文件名前缀"),
+        idx_width: int = typer.Option(11, min=1, help="自定义：文件序号长度，3=>001"),
+        idx_start: int = typer.Option(1, min=1, help="自定义：写入文件序号起始值"),
         skip_stage_init: bool = typer.Option(False, help="自定义：跳过 init 阶段"),
         write_only: bool = typer.Option(False, help="自定义：只写入，不删除"),
         delete_immediately: bool = typer.Option(False, help="自定义：写入后，立即删除上一个"),
-        single_root: bool = typer.Option(False, help="自定义：单根目录"),
+        single_root: bool = typer.Option(False, help="自定义：单根目录模式？"),
         single_root_name: str = typer.Option('video', help="自定义：单根目录时，根目录名称"),
         process_workers: int = typer.Option(8, min=1, help="自定义：多进程运行协程，进程数"),
 
@@ -73,7 +69,7 @@ def video_fs(
         case_id: int = typer.Option(0, min=0, help="测试用例ID，关联到日志文件名"),
         desc: str = typer.Option('', help="测试描述"),
 ):
-    init_logger(prefix='video', case_id=case_id, trace=trace)
+    init_logger(prefix='video_fs', case_id=case_id, trace=trace)
     init_print(case_id, desc, channel_num, bitstream, False, max_workers)
 
     # 计算分析业务需求，打印业务模型

@@ -5,14 +5,14 @@
 @file:multi_channel
 @time:2023/5/27
 @email:tao.xu2008@outlook.com
-@description: 视频监控场景测试 - 文件存储 - 多路视频数据流并发执行
+@description: 视频监控场景测试 - 对象存储 - 多路视频数据流并发执行
 """
 import asyncio
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from cli.log import init_logger
 from utils.util import split_list_n_list
-from workflow.video.fs.one_channel import FSVideoWorkflowOneChannel
+from workflow.video.s3.one_channel import S3VideoWorkflowOneChannel
 
 
 async def _run(process_channel_list, **kwargs):
@@ -21,8 +21,8 @@ async def _run(process_channel_list, **kwargs):
 
     tasks = []
     for channel_id in process_channel_list:
-        vm_obj = FSVideoWorkflowOneChannel(
-            target=kwargs["target"],
+        vm_obj = S3VideoWorkflowOneChannel(
+            client=kwargs["client"],
             file_info=kwargs["file_info"],
             channel_id=channel_id,
             vs_info=kwargs["vs_info"],
