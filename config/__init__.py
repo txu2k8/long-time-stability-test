@@ -10,7 +10,7 @@
 from config.globals import *
 
 
-__version__ = "2.0.1 - 2023-03-21"
+__version__ = "2.0.2 - 2023-05-28"
 __author__ = "tao.xu"
 
 __all__ = [

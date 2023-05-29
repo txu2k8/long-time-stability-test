@@ -9,11 +9,11 @@
 """
 import random
 
-from workflow.stress.stress_workflow import BaseStress
+from workflow.stress.stress_workflow_base import StressWorkflowBase
 from utils.util import get_local_files
 
 
-class PutObject(BaseStress):
+class PutObject(StressWorkflowBase):
     """上传对象"""
     def __init__(
             self,

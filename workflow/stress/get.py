@@ -11,10 +11,10 @@ import os
 from loguru import logger
 
 from utils.util import get_md5_value
-from workflow.stress.stress_workflow import BaseStress
+from workflow.stress.stress_workflow_base import StressWorkflowBase
 
 
-class GetObject(BaseStress):
+class GetObject(StressWorkflowBase):
     """下载对象"""
 
     def __init__(

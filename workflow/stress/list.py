@@ -7,10 +7,10 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
-from workflow.stress.stress_workflow import BaseStress
+from workflow.stress.stress_workflow_base import StressWorkflowBase
 
 
-class ListObject(BaseStress):
+class ListObject(StressWorkflowBase):
     """列表对象"""
 
     def __init__(

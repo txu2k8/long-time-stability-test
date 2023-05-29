@@ -26,7 +26,7 @@ def handler(signum, frame):
     logger.warning("receive a signal {0}, is_exit = {1}".format(signum, is_exit))
 
 
-class BaseStress(WorkflowBase, WorkflowInterface, ABC):
+class StressWorkflowBase(WorkflowBase, WorkflowInterface, ABC):
     """
     压力测试 - 基类，多线程并发处理
     """
@@ -38,7 +38,7 @@ class BaseStress(WorkflowBase, WorkflowInterface, ABC):
             main_concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0,
             depth=1, duration=0, cover=False,
     ):
-        super(BaseStress, self).__init__(
+        super(StressWorkflowBase, self).__init__(
             client_types, endpoint, access_key, secret_key, tls, alias,
             bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
             main_concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start

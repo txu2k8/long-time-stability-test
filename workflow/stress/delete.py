@@ -7,10 +7,10 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
-from workflow.stress.stress_workflow import BaseStress
+from workflow.stress.stress_workflow_base import StressWorkflowBase
 
 
-class DeleteObject(BaseStress):
+class DeleteObject(StressWorkflowBase):
     """删除对象"""
 
     def __init__(
