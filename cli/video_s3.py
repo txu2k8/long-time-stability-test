@@ -61,7 +61,6 @@ def video_s3(
         disable_multipart: bool = typer.Option(False, help="业务模型：非多段上传？"),
         max_workers: int = typer.Option(1000, min=1, help="业务模型：写删阶段最大并发数"),
         prepare_channel_num: int = typer.Option(0, min=0, help="业务模型：预置阶段,视频写入路数,默认=channel_num"),
-        obj_size: int = typer.Option(128, min=1, help="业务模型：对象大小,默认128MB"),
 
         # 自定义设置
         bucket_prefix: str = typer.Option('bucket', help="自定义：桶名称前缀"),
@@ -96,7 +95,7 @@ def video_s3(
     # 计算分析业务需求，打印业务模型
     vs_info = VSCalc(
         channel_num, bitstream, capacity, data_life, safe_water_level,
-        prepare_channel_num, obj_size, segments, appendable, disable_multipart,
+        prepare_channel_num, file_info, segments, appendable, disable_multipart,max_workers,
         bucket_prefix, obj_prefix, idx_width, idx_start
     ).vs_info
     time.sleep(3)

@@ -200,7 +200,7 @@ def size_convert_str2byte(str_size, ratio=1024):
     :return:size (byte)
     """
     units = ["B", "KB", "MB", "GB", "TB", "PB"]
-    keys = re.findall(r'(\d+)([B_K_M_G_T_P_Z]+)', str_size.upper())
+    keys = re.findall(r'(\d*[\.\d+]*)([B_K_M_G_T_P_Z]+)', str_size.upper())
     if len(keys) != 1:
         raise Exception('无效的str_size：{}，期望如：1MB、2GB'.format(str_size))
     value, unit = keys[0]
@@ -208,7 +208,7 @@ def size_convert_str2byte(str_size, ratio=1024):
         power = units.index(unit)
     except Exception as e:
         raise Exception("无效的单位：{}，期望：{}\n {}".format(unit, units, e))
-    return int(value) * (ratio**power)
+    return int(float(value) * (ratio**power))
 
 
 def size_convert_byte2str(value):
@@ -275,4 +275,6 @@ if __name__ == "__main__":
     # print(size_convert_str2byte('1G'))
     # print(seconds_convert_str(1122222))
     # print(split_integer(12, 5))
-    print(get_local_files(r"D:\minio\upload"))
+    # print(get_local_files(r"D:\minio\upload"))
+    # print(size_convert_str2byte('160.05TB'))
+    print(size_convert_str2byte('1KB'))

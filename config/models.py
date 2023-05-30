@@ -36,8 +36,8 @@ class FileSegmentInfo(BaseModel):
 # 文件信息
 class FileInfo(BaseModel):
     """文件信息 - 数据模型"""
-    name: Text
-    full_path: Text
+    name: Text = ''
+    full_path: Text = ''
     file_type: Text = ''
     md5: Text = ''
     tags: Text = ''  # "key1=value1&key2=value2"

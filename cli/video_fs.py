@@ -50,7 +50,6 @@ def video_fs(
         segments: int = typer.Option(1, min=1, help="业务模型：追加写模式下，一个文件分片进行追加次数数"),
         max_workers: int = typer.Option(2, min=1, help="业务模型：每路视频最大并发数"),
         prepare_channel_num: int = typer.Option(0, min=0, help="业务模型：预置阶段,视频写入路数,默认=channel_num"),
-        obj_size: int = typer.Option(128, min=1, help="业务模型：文件大小,默认128MB"),
 
         # 自定义设置
         bucket_prefix: str = typer.Option('bucket', help="自定义：桶名称前缀"),
@@ -71,24 +70,28 @@ def video_fs(
 ):
     init_logger(prefix='video_fs', case_id=case_id, trace=trace)
     init_print(case_id, desc, channel_num, bitstream, False, max_workers)
+    if not appendable:
+        # 非追加写模式，分片=1
+        segments = 1
+
+    # 读取源数据文件池
+    file_list = get_local_files(local_path, with_rb_data=True)
+    file_info = file_list[0]
 
     # 计算分析业务需求，打印业务模型
     vs_info = VSCalc(
         channel_num, bitstream, capacity, data_life, safe_water_level,
-        prepare_channel_num, obj_size, segments, appendable, False,
+        prepare_channel_num, file_info, segments, appendable, False, max_workers,
         bucket_prefix, obj_prefix, idx_width, idx_start
     ).vs_info
     # time.sleep(3)
-
-    # 准备源数据文件池 字典
-    file_list = get_local_files(local_path, with_rb_data=True)
 
     # 初始化数据库
     # InitDB().db_init()
 
     multi_channel_run(
         channel_num, process_workers,
-        target=target, file_info=file_list[0], vs_info=vs_info,
+        target=target, file_info=file_info, vs_info=vs_info,
         skip_stage_init=skip_stage_init, write_only=write_only, delete_immediately=delete_immediately,
         single_root=single_root, single_root_name=single_root_name,
         trace=trace
