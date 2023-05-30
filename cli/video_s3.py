@@ -58,9 +58,8 @@ def video_s3(
         local_path: str = typer.Option(..., help="业务模型：指定源文件路径，随机上传文件"),
         appendable: bool = typer.Option(False, help="业务模型：追加写模式？"),
         segments: int = typer.Option(0, min=0, help="业务模型：追加写模式下，一个对象分片进行追加次数数"),
-        multipart: MultipartType = typer.Option(MultipartType.enable.value, help="业务模型：多段上传"),
+        disable_multipart: bool = typer.Option(False, help="业务模型：非多段上传？"),
         max_workers: int = typer.Option(1000, min=1, help="业务模型：写删阶段最大并发数"),
-
         prepare_channel_num: int = typer.Option(0, min=0, help="业务模型：预置阶段,视频写入路数,默认=channel_num"),
         obj_size: int = typer.Option(128, min=1, help="业务模型：对象大小,默认128MB"),
 
@@ -75,6 +74,7 @@ def video_s3(
         single_root: bool = typer.Option(False, help="自定义：单根目录模式？"),
         single_root_name: str = typer.Option('video', help="自定义：单根目录时，根目录名称"),
         process_workers: int = typer.Option(8, min=1, help="自定义：多进程运行协程，进程数"),
+        duration: int = typer.Option(0, min=0, help="自定义：指定持续执行时间，0-代表永久"),
 
         # 其他
         trace: bool = typer.Option(False, help="print TRACE level log"),
@@ -83,12 +83,20 @@ def video_s3(
 ):
     client_types = [ClientType.MC]
     init_logger(prefix='video', case_id=case_id, trace=trace)
-    init_print(case_id, desc, client_types, channel_num, bitstream, multipart, max_workers)
+    init_print(case_id, desc, client_types, channel_num, bitstream, disable_multipart, max_workers)
+
+    if not appendable:
+        # 非追加写模式，分片=1
+        segments = 1
+
+    # 读取源数据文件池
+    file_list = get_local_files(local_path, with_rb_data=appendable)
+    file_info = file_list[0]
 
     # 计算分析业务需求，打印业务模型
     vs_info = VSCalc(
         channel_num, bitstream, capacity, data_life, safe_water_level,
-        prepare_channel_num, obj_size, segments, appendable, multipart,
+        prepare_channel_num, obj_size, segments, appendable, disable_multipart,
         bucket_prefix, obj_prefix, idx_width, idx_start
     ).vs_info
     time.sleep(3)
@@ -96,9 +104,6 @@ def video_s3(
     # 初始化客户端
     clients_info = init_clients(client_types, endpoint, access_key, secret_key, tls, alias)
     client = clients_info[ClientType.MC.value]
-
-    # 准备源数据文件池 字典
-    file_list = get_local_files(local_path, with_rb_data=appendable)
 
     # 初始化数据库
     InitDB().db_init()
@@ -110,8 +115,8 @@ def video_s3(
 
     multi_channel_run(
         channel_num, process_workers,
-        client=client, file_info=file_list[0], vs_info=vs_info,
+        client=client, file_info=file_info, vs_info=vs_info,
         skip_stage_init=skip_stage_init, write_only=write_only, delete_immediately=delete_immediately,
-        single_root=single_root, single_root_name=single_root_name,
+        single_root=single_root, single_root_name=single_root_name, duration=duration,
         trace=trace
     )

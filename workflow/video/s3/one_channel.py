@@ -26,11 +26,11 @@ class S3VideoWorkflowOneChannel(VideoWorkflowBase):
     def __init__(
             self, client, file_info, channel_id, vs_info: VSInfo,
             skip_stage_init=False, write_only=False, delete_immediately=False,
-            single_root=False, single_root_name="video"
+            single_root=False, single_root_name="video", duration=0
     ):
         super(S3VideoWorkflowOneChannel, self).__init__(
             file_info, channel_id, vs_info,
-            skip_stage_init, write_only, delete_immediately, single_root, single_root_name
+            skip_stage_init, write_only, delete_immediately, single_root, single_root_name, duration
         )
         # 初始化客户端
         self.client = client

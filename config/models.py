@@ -43,6 +43,6 @@ class FileInfo(BaseModel):
     tags: Text = ''  # "key1=value1&key2=value2"
     attr: Text = ''  # "key1=value1;key2=value2"
     size: int = 0  # 数据大小，字节数
-    size_human: Text = ""  # 数据大小，转换为可读的，如：200MB
+    size_human: Text = ""  # 数据大小，KB/MB/GB/TB
     segments: int = 1  # 数据分段读取
     rb_data_list: List[FileSegmentInfo] = []  # rb模式读取的 文件内容，按分段顺序保存

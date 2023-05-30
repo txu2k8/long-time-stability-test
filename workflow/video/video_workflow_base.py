@@ -32,7 +32,7 @@ class VideoWorkflowBase(WorkflowInterface, ABC):
     def __init__(
             self, file_info: FileInfo, channel_id, vs_info: VSInfo,
             skip_stage_init=False, write_only=False, delete_immediately=False,
-            single_root=False, single_root_name="video",
+            single_root=False, single_root_name="video", duration=0
     ):
         # 源数据 字典
         self.file_info = file_info
@@ -45,6 +45,7 @@ class VideoWorkflowBase(WorkflowInterface, ABC):
         self.write_only = write_only  # 只写，不删除
         self.delete_immediately = delete_immediately  # 立即删除，删除前一个文件/对象
         self.single_root = single_root  # 单桶/单根目录模式
+        self.duration = duration  # 持续运行时间，0-代表永久
 
         self.channel_name = f"{self.vs_info.root_prefix}{channel_id}"  # 单桶/单根目录模式时，视频写入目录名
         self.root_dir_name = single_root_name if single_root else self.channel_name  # 多桶/目录模式，每路视频写入指定桶/目录
@@ -58,6 +59,7 @@ class VideoWorkflowBase(WorkflowInterface, ABC):
         self.sum_count = 0
         self.elapsed_sum = 0
 
+        self.req_count = 0
         self.res_count = 0
 
     @staticmethod
@@ -156,6 +158,10 @@ class VideoWorkflowBase(WorkflowInterface, ABC):
             idx += 1
             self.vs_info.idx_put_start = idx
 
+            if 0 < self.duration < (datetime.datetime.now() - self.start_datetime).total_seconds():
+                logger.warning(f"停止生产！req={self.req_count},res={self.res_count}, Channel={self.channel_id}")
+                break
+
     async def consumer(self, queue):
         """
         consume queue队列，指定队列中全部被消费
@@ -164,11 +170,11 @@ class VideoWorkflowBase(WorkflowInterface, ABC):
         """
         while True:
             item = await queue.get()
-            self.res_count += 1
+            self.req_count += 1
             await self.worker(*item)
-            self.res_count -= 1
-            if self.res_count >= 1:
-                logger.warning(f"请求未返回计数={self.res_count}, Channel={self.channel_id}")
+            self.res_count += 1
+            if self.res_count != self.req_count:
+                logger.warning(f"请求未返回!req={self.req_count},res={self.res_count} Channel={self.channel_id}")
             queue.task_done()
 
     async def stage_init(self):
