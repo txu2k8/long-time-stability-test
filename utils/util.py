@@ -80,7 +80,7 @@ def get_local_files(local_path, brief_tags=False, with_rb_data=False, segments=1
                         file_s_info = FileSegmentInfo(
                             position=position,
                             size=offset,
-                            data=data[position:offset]
+                            data=data[position:position+offset]
                         )
                         position += offset
                         file_info.rb_data_list.append(file_s_info)
