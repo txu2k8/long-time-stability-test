@@ -53,7 +53,7 @@ def video_s3(
         channel_num: int = typer.Option(1, min=1, help="业务模型：视频路数"),
         bitstream: int = typer.Option(4, min=1, help="业务模型：视频码流（单位：Mbps）"),
         data_life: int = typer.Option(0, min=0, help="业务模型：数据保留期限（单位：天），0-表示自动推算"),
-        capacity: int = typer.Option(..., min=1, help="业务模型：可用空间（单位：MB）"),
+        capacity: str = typer.Option(..., help="业务模型：可用空间（支持写法如：5GB、10.2TB）"),
         safe_water_level: float = typer.Option(0.9, min=0, help="业务模型：可用空间（单位：MB）"),
         local_path: str = typer.Option(..., help="业务模型：指定源文件路径，随机上传文件"),
         appendable: bool = typer.Option(False, help="业务模型：追加写模式？"),
