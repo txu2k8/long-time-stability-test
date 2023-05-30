@@ -94,7 +94,7 @@ class VideoWorkflowBase(WorkflowInterface, ABC):
         :return:
         """
         file_prefix = self._file_prefix_calc(self.vs_info.file_prefix, self.depth, date_prefix)
-        file_path = file_prefix + zfill(idx, width=self.vs_info.idx_width)
+        file_path = file_prefix + zfill(idx, width=self.vs_info.idx_width) + self.file_info.file_type
         if self.single_root:
             file_path = f"{self.channel_name}/{file_path}"
         return file_path
