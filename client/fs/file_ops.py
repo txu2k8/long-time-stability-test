@@ -74,7 +74,7 @@ class FileOps(object):
             dir_name = os.path.dirname(filepath)
             if not os.path.exists(dir_name):
                 os.makedirs(dir_name)
-            logger.success(f"文件写入开始！{msg}")
+            logger.success(f"文件写入开始！cp {msg}")
             async with aiofiles.open(filepath, mode=mode) as f:
                 await f.write(data)
                 await f.flush()
