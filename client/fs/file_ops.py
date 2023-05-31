@@ -55,17 +55,19 @@ class FileOps(object):
         pass
 
     @staticmethod
-    async def async_file_write(filepath, data, segment_idx=0, segment_total=1, src_path=''):
+    async def async_file_write(filepath, data, appendable=False, segment_idx=0, segment_total=1, src_path=''):
         """
         异步写入指定文件
         :param filepath:
         :param data:
+        :param appendable:
         :param segment_idx:
         :param segment_total:
         :param src_path:
         :return:
         """
         rc = -1
+        mode = 'ab' if appendable else 'wb'
         msg = f"{src_path}->{filepath}, idx={segment_idx}/{segment_total - 1}"
         start = datetime.datetime.now()
         try:
@@ -73,13 +75,42 @@ class FileOps(object):
             if not os.path.exists(dir_name):
                 os.makedirs(dir_name)
             logger.success(f"文件写入开始！{msg}")
-            async with aiofiles.open(filepath, mode='wb') as f:
+            async with aiofiles.open(filepath, mode=mode) as f:
                 await f.write(data)
                 await f.flush()
                 end = datetime.datetime.now()
                 elapsed = (end - start).total_seconds()
                 rc = 0
             logger.success(f"文件写入成功!{msg}, 耗时：{round(elapsed, 3)} s")
+        except Exception as e:
+            end = datetime.datetime.now()
+            elapsed = (end - start).total_seconds()
+            logger.error(f"文件写入失败!{msg}, 耗时：{round(elapsed, 3)} s, {e}")
+        return rc, elapsed
+
+    async def async_file_cp(self, src_path, dst_path, segment_idx=0, segment_total=1):
+        """
+        异步删除指定文件
+        :param src_path:
+        :param dst_path:
+        :param segment_idx:
+        :param segment_total:
+        :return:
+        """
+        rc = -1
+        msg = f"{src_path}->{dst_path}, idx={segment_idx}/{segment_total - 1}"
+        start = datetime.datetime.now()
+        try:
+            dir_name = os.path.dirname(dst_path)
+            if not os.path.exists(dir_name):
+                os.makedirs(dir_name)
+            logger.success(f"文件写入开始！{msg}")
+
+            rc, elapsed, _, _ = await self._async_exec(f"cp {src_path} {dst_path}")
+            if rc == 0:
+                logger.success(f"文件写入成功!{msg}, 耗时：{round(elapsed, 3)} s")
+            else:
+                logger.error(f"文件写入失败!{msg}, 耗时：{round(elapsed, 3)} s")
         except Exception as e:
             end = datetime.datetime.now()
             elapsed = (end - start).total_seconds()

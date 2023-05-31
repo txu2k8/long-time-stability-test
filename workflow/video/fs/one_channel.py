@@ -52,14 +52,15 @@ class FSVideoWorkflowOneChannel(VideoWorkflowBase):
 
         # 写入
         file_abs_path = self.file_abspath_calc(idx_put)
-        if self.vs_info.appendable:
-            logger.error("暂不支持！！！")
-            sys.exit()
-        else:
-            await self.file_ops.async_file_write(
-                file_abs_path, self.file_info.rb_data_list[segment].data,
-                segment_idx=segment, segment_total=self.vs_info.segments, src_path=self.file_info.full_path
-            )
+        # aiofiles.op方式写入
+        # await self.file_ops.async_file_write(
+        #     file_abs_path, self.file_info.rb_data_list[segment].data, appendable=self.vs_info.appendable,
+        #     segment_idx=segment, segment_total=self.vs_info.segments, src_path=self.file_info.full_path
+        # )
+        # cp命令方式写入
+        await self.file_ops.async_file_cp(
+            self.file_info.full_path, file_abs_path, segment_idx=segment, segment_total=self.vs_info.segments
+        )
 
         # 删除
         if not self.write_only and segment == 0:
