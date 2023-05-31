@@ -9,6 +9,7 @@
 """
 import asyncio
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from loguru import logger
 
 from cli.log import init_logger
 from utils.util import split_list_n_list
@@ -16,8 +17,11 @@ from workflow.video.s3.one_channel import S3VideoWorkflowOneChannel
 
 
 async def _run(process_channel_list, **kwargs):
-    # ch_start, ch_end = process_channel_list[0], process_channel_list[-1]
-    # init_logger(prefix=f"video_fs_{ch_start}_{ch_end}", trace=kwargs["trace"])
+    try:
+        ch_start, ch_end = process_channel_list[0], process_channel_list[-1]
+        init_logger(prefix=f"video_fs_{ch_start}_{ch_end}", trace=kwargs["trace"])
+    except Exception as e:
+        logger.error(e)
 
     tasks = []
     for channel_id in process_channel_list:

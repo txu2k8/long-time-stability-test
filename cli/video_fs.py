@@ -62,6 +62,7 @@ def video_fs(
         single_root: bool = typer.Option(False, help="自定义：单根目录模式？"),
         single_root_name: str = typer.Option('video', help="自定义：单根目录时，根目录名称"),
         process_workers: int = typer.Option(8, min=1, help="自定义：多进程运行协程，进程数"),
+        duration: int = typer.Option(0, min=0, help="自定义：指定持续执行时间，0-代表永久"),
 
         # 其他
         trace: bool = typer.Option(False, help="print TRACE level log"),
@@ -75,7 +76,8 @@ def video_fs(
         segments = 1
 
     # 读取源数据文件池
-    file_list = get_local_files(local_path, with_rb_data=True)
+    file_list = get_local_files(local_path, with_rb_data=True, segments=segments)
+    assert len(file_list) > 0, "未找到任何源文件！"
     file_info = file_list[0]
 
     # 计算分析业务需求，打印业务模型
@@ -93,7 +95,7 @@ def video_fs(
         channel_num, process_workers,
         target=target, file_info=file_info, vs_info=vs_info,
         skip_stage_init=skip_stage_init, write_only=write_only, delete_immediately=delete_immediately,
-        single_root=single_root, single_root_name=single_root_name,
+        single_root=single_root, single_root_name=single_root_name, duration=duration,
         trace=trace
     )
 

@@ -89,13 +89,14 @@ def video_s3(
         segments = 1
 
     # 读取源数据文件池
-    file_list = get_local_files(local_path, with_rb_data=appendable)
+    file_list = get_local_files(local_path, with_rb_data=appendable, segments=segments)
+    assert len(file_list) > 0, "未找到任何源文件！"
     file_info = file_list[0]
 
     # 计算分析业务需求，打印业务模型
     vs_info = VSCalc(
         channel_num, bitstream, capacity, data_life, safe_water_level,
-        prepare_channel_num, file_info, segments, appendable, disable_multipart,max_workers,
+        prepare_channel_num, file_info, segments, appendable, disable_multipart, max_workers,
         bucket_prefix, obj_prefix, idx_width, idx_start
     ).vs_info
     time.sleep(3)
