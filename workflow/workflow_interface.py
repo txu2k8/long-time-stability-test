@@ -14,6 +14,10 @@ class WorkflowInterface(ABC):
     """定义所有 工作流 需要实现的接口"""
 
     @abstractmethod
+    def file_path_calc(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
     def stage_init(self, *args, **kwargs):
         pass
 

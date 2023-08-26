@@ -7,7 +7,7 @@
 @email:tao.xu2008@outlook.com
 @description:
 """
-from cli import stress
+from cli import stress_s3
 from cli import check
 from cli import tools
 from cli import video_s3
@@ -15,5 +15,5 @@ from cli import video_fs
 
 
 __all__ = [
-    stress, check, tools, video_s3, video_fs
+    stress_s3, check, tools, video_s3, video_fs
 ]

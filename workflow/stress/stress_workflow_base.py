@@ -10,12 +10,15 @@
 import signal
 import random
 import datetime
+from typing import List
 from abc import ABC
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from loguru import logger
 
+from config.models import FileInfo
 from workflow.workflow_base import WorkflowBase
 from workflow.workflow_interface import WorkflowInterface
+from workflow.stress.calculate import StressInfo
 
 is_exit = False
 
@@ -33,19 +36,35 @@ class StressWorkflowBase(WorkflowBase, WorkflowInterface, ABC):
 
     def __init__(
             self,
-            client_types, endpoint, access_key, secret_key, tls, alias,
+            src_files: List[FileInfo], stress_info: StressInfo,
             bucket_prefix, bucket_num=1, obj_prefix='', obj_num=10, multipart=False, local_path="",
             main_concurrent=1, prepare_concurrent=1, idx_width=1, idx_put_start=0, idx_del_start=0,
             depth=1, duration=0, cover=False,
     ):
-        super(StressWorkflowBase, self).__init__(
-            client_types, endpoint, access_key, secret_key, tls, alias,
-            bucket_prefix, bucket_num, obj_prefix, obj_num, multipart, local_path,
-            main_concurrent, prepare_concurrent, idx_width, idx_put_start, idx_del_start
-        )
-        self.depth = depth
+        super(StressWorkflowBase, self).__init__()
+        self.depth = depth  # 默认使用对象目录深度=1，即不建子目录
+        self.file_list = file_list
+        self.stress_info = stress_info
+
         self.duration = duration
         self.cover = cover
+
+    def file_path_calc(self, idx):
+        """
+        基于对象idx计算该对象应该存储的桶和对象路径
+        :param idx:
+        :return:
+        """
+        # 计算对象路径
+        date_step = idx // self.stress_info.obj_num_pc_pd  # 每日写N个对象，放在一个日期命名的文件夹
+        current_date = self.date_str_calc(self.start_date, date_step)
+        date_prefix = current_date + '/'
+        file_path = self.base_file_path_calc(
+            idx, self.depth, date_prefix, self.stress_info.file_prefix, self.stress_info.idx_width, self.file_info.file_type
+        )
+        if self.single_root:
+            file_path = f"{self.channel_name}/{file_path}"
+        return file_path, current_date
 
     def stage_init(self):
         """

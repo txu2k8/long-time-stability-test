@@ -16,12 +16,12 @@ from loguru import logger
 
 from utils.util import zfill
 from config.models import FileInfo
-from workflow.workflow_base import InitDB
+from workflow.workflow_base import WorkflowBase, InitDB
 from workflow.workflow_interface import WorkflowInterface
 from workflow.video.calculate import VSInfo
 
 
-class VideoWorkflowBase(WorkflowInterface, ABC):
+class VideoWorkflowBase(WorkflowBase, WorkflowInterface, ABC):
     """
     视频监控场景测试 - 基类
     1、init阶段：新建桶，初始化数据库用于存储写入的对象路径
@@ -34,6 +34,7 @@ class VideoWorkflowBase(WorkflowInterface, ABC):
             skip_stage_init=False, write_only=False, delete_immediately=False,
             single_root=False, single_root_name="video", duration=0
     ):
+        super(VideoWorkflowBase, self).__init__()
         # 源数据 字典
         self.file_info = file_info
         # 输入必填项：原始需求
@@ -62,43 +63,6 @@ class VideoWorkflowBase(WorkflowInterface, ABC):
         self.req_count = 0
         self.res_count = 0
 
-    @staticmethod
-    def date_str_calc(start_date, date_step=1):
-        """获取 date_step 天后的日期"""
-        return arrow.get(start_date).shift(days=date_step).datetime.strftime("%Y-%m-%d")
-
-    @staticmethod
-    def _file_prefix_calc(obj_prefix, depth, date_prefix=''):
-        """
-        拼接对象/文件前缀、路径、日期前缀
-        :param obj_prefix:
-        :param depth:
-        :param date_prefix:
-        :return:
-        """
-        if date_prefix == "today":
-            date_prefix = datetime.date.today().strftime("%Y-%m-%d") + '/'  # 按日期写入不同文件夹
-
-        nested_prefix = ""
-        for d in range(2, depth + 1):  # depth=2开始创建子文件夹，depth=1为日期文件夹
-            nested_prefix += f'nested{d - 1}/'
-        prefix = date_prefix + nested_prefix + obj_prefix
-        return prefix
-
-    def _file_path_calc(self, idx, date_prefix=''):
-        """
-        依据idx序号计算对象 path，实际为：<root_path>/{obj_path}
-        depth:子目录深度，depth=2开始创建子目录
-        :param idx:
-        :param date_prefix:按日期写不同文件夹
-        :return:
-        """
-        file_prefix = self._file_prefix_calc(self.vs_info.file_prefix, self.depth, date_prefix)
-        file_path = file_prefix + zfill(idx, width=self.vs_info.idx_width) + self.file_info.file_type
-        if self.single_root:
-            file_path = f"{self.channel_name}/{file_path}"
-        return file_path
-
     def file_path_calc(self, idx):
         """
         基于对象idx计算该对象应该存储的桶和对象路径
@@ -109,7 +73,12 @@ class VideoWorkflowBase(WorkflowInterface, ABC):
         date_step = idx // self.vs_info.obj_num_pc_pd  # 每日写N个对象，放在一个日期命名的文件夹
         current_date = self.date_str_calc(self.start_date, date_step)
         date_prefix = current_date + '/'
-        file_path = self._file_path_calc(idx, date_prefix)
+        file_path = self.base_file_path_calc(
+            idx, self.depth, date_prefix, self.vs_info.file_prefix, self.vs_info.idx_width,
+            self.file_info.file_type, self.channel_id
+        )
+        if self.single_root:
+            file_path = f"{self.channel_name}/{file_path}"
         return file_path, current_date
 
     def statistics(self, elapsed):
