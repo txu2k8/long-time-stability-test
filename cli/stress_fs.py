@@ -56,11 +56,6 @@ def duration_callback(ctx: typer.Context, param: typer.CallbackParam, value: str
 
 @app.command(help='stress put objects')
 def put(
-        endpoint: str = typer.Option(..., help="例：127.0.0.1:9000 or http://127.0.0.1:9000"),
-        access_key: str = typer.Option(..., help="ACCESS_KEY"),
-        secret_key: str = typer.Option(..., help="SECRET_KEY"),
-        tls: bool = typer.Option(False, help="https传输协议"),
-        alias: str = typer.Option('play', help="别名"),
         bucket_prefix: str = typer.Option('bucket', help="桶名称前缀"),
         bucket_num: int = typer.Option(1, min=1, help="桶数量，对象会被均衡写入到各个桶中"),
         obj_prefix: str = typer.Option('data', help="对象名前缀"),

@@ -9,6 +9,7 @@
 """
 import os
 import datetime
+import subprocess
 import asyncio
 import aiofiles
 
@@ -24,7 +25,17 @@ class FileOps(object):
     def __init__(self):
         pass
 
-    async def _async_exec(self, cmd):
+    @staticmethod
+    def _exec(cmd):
+        start = datetime.datetime.now()
+        rc, output = subprocess.getstatusoutput(cmd)
+        end = datetime.datetime.now()
+        elapsed = (end - start).total_seconds()  # 耗时 x.y 秒
+        logger.debug(output.strip('\n'))
+        return rc, elapsed, output
+
+    @staticmethod
+    async def _async_exec(cmd):
         """
         异步执行命令
         :param cmd:
@@ -45,15 +56,89 @@ class FileOps(object):
             logger.error('Response({}):\n{}'.format(cmd, stderr.decode().strip('\n')))
         return rc, elapsed, stdout, stderr
 
-    def file_cp(self, src, dst):
+    def file_cp(self, src_path, dst_path):
         """
         复制指定文件
-        :param src:
-        :param dst:
+        :param src_path:
+        :param dst_path:
         :return:
         """
-        pass
+        rc = -1
+        msg = f"{src_path}->{dst_path}"
+        start = datetime.datetime.now()
+        try:
+            dir_name = os.path.dirname(dst_path)
+            if not os.path.exists(dir_name):
+                os.makedirs(dir_name)
+            logger.success(f"文件写入开始！{msg}")
 
+            rc, elapsed, output = self._exec(f"cp {src_path} {dst_path}")
+            if rc == 0:
+                logger.success(f"文件写入成功!{msg}, 耗时：{round(elapsed, 3)} s")
+            else:
+                logger.error(f"文件写入失败!{msg}, 耗时：{round(elapsed, 3)} s")
+        except Exception as e:
+            end = datetime.datetime.now()
+            elapsed = (end - start).total_seconds()
+            logger.error(f"文件写入失败!{msg}, 耗时：{round(elapsed, 3)} s, {e}")
+        return rc, elapsed
+
+    @staticmethod
+    def file_write(filepath, data, appendable=False, segment_idx=0, segment_total=1, src_path=''):
+        """
+        open-》write方式 写入指定文件
+        :param filepath:
+        :param data:
+        :param appendable:
+        :param segment_idx:
+        :param segment_total:
+        :param src_path:
+        :return:
+        """
+        rc = -1
+        mode = 'ab' if appendable else 'wb'
+        msg = f"{src_path}->{filepath}, idx={segment_idx}/{segment_total - 1}"
+        start = datetime.datetime.now()
+        try:
+            dir_name = os.path.dirname(filepath)
+            if not os.path.exists(dir_name):
+                os.makedirs(dir_name)
+            logger.success(f"文件写入开始！cp {msg}")
+            with open(filepath, mode=mode) as f:
+                f.write(data)
+                f.flush()
+                end = datetime.datetime.now()
+                elapsed = (end - start).total_seconds()
+                rc = 0
+            logger.success(f"文件写入成功!{msg}, 耗时：{round(elapsed, 3)} s")
+        except Exception as e:
+            end = datetime.datetime.now()
+            elapsed = (end - start).total_seconds()
+            logger.error(f"文件写入失败!{msg}, 耗时：{round(elapsed, 3)} s, {e}")
+        return rc, elapsed
+
+    def file_delete(self, filepath):
+        """
+        异步删除指定文件
+        :param filepath:
+        :return:
+        """
+        rc, elapsed = 0, 0
+        if POSIX:
+            rc, elapsed, _ = self._exec(f"rm -rf {filepath}")
+            if rc == 0:
+                logger.success(f"删除成功！{filepath}")
+            else:
+                logger.success(f"删除失败！{filepath}")
+        else:
+            try:
+                os.remove(filepath)
+            except Exception as e:
+                rc = -1
+                logger.error(f"删除失败！{filepath}, {e}")
+        return rc, elapsed
+
+    # 异步函数
     @staticmethod
     async def async_file_write(filepath, data, appendable=False, segment_idx=0, segment_total=1, src_path=''):
         """

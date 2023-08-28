@@ -106,7 +106,7 @@ def video_s3(
     client = clients_info[ClientType.MC.value]
 
     # 初始化数据库
-    InitDB().db_init()
+    # InitDB().db_init()
 
     # 单桶模式，只创建一次桶
     if single_root:

@@ -49,11 +49,11 @@ class S3VideoWorkflowOneChannel(VideoWorkflowBase):
         # 删除旧数据
         idx_del = idx_put - self.vs_info.obj_num_pc
         if idx_del > 0:
-            obj_path_del, _ = self.file_path_calc(idx_del)
+            obj_path_del, _ = self.calc_file_path(idx_del)
             await self.client.async_delete(self.bucket, obj_path_del)
 
         # 上传
-        obj_path, current_date = self.file_path_calc(idx_put)
+        obj_path, current_date = self.calc_file_path(idx_put)
         if self.vs_info.appendable:
             # 追加写模式  TODO
             elapsed = await self.s3_api.append_write_async(

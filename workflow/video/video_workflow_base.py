@@ -63,7 +63,7 @@ class VideoWorkflowBase(WorkflowBase, WorkflowInterface, ABC):
         self.req_count = 0
         self.res_count = 0
 
-    def file_path_calc(self, idx):
+    def calc_file_path(self, idx):
         """
         基于对象idx计算该对象应该存储的桶和对象路径
         :param idx:
@@ -71,9 +71,9 @@ class VideoWorkflowBase(WorkflowBase, WorkflowInterface, ABC):
         """
         # 计算对象路径
         date_step = idx // self.vs_info.obj_num_pc_pd  # 每日写N个对象，放在一个日期命名的文件夹
-        current_date = self.date_str_calc(self.start_date, date_step)
+        current_date = self.calc_date_str(self.start_date, date_step)
         date_prefix = current_date + '/'
-        file_path = self.base_file_path_calc(
+        file_path = self.calc_file_path_base(
             idx, self.depth, date_prefix, self.vs_info.file_prefix, self.vs_info.idx_width,
             self.file_info.file_type, self.channel_id
         )
@@ -81,25 +81,32 @@ class VideoWorkflowBase(WorkflowBase, WorkflowInterface, ABC):
             file_path = f"{self.channel_name}/{file_path}"
         return file_path, current_date
 
-    def statistics(self, elapsed):
+    async def put_worker(self, *args, **kwargs):
         """
-        统计时延变化趋势信息
-        :param elapsed:
+        PUT worker
+        :param args:
+        :param kwargs:
         :return:
         """
-        self.elapsed_sum += elapsed
-        self.sum_count += 1
-        datetime_now = datetime.datetime.now()
-        elapsed_seconds = (datetime_now - self.start_datetime).seconds
-        if elapsed_seconds >= 60:
-            # 每分钟统计一次平均值
-            ops = round(self.sum_count / elapsed_seconds, 3)
-            elapsed_avg = round(self.elapsed_sum / self.sum_count, 3)
-            logger.info("OPS={}, elapsed_avg={}".format(ops, elapsed_avg))
-            InitDB().db_stat_insert(ops, elapsed_avg)
-            self.start_datetime = datetime_now
-            self.elapsed_sum = 0
-            self.sum_count = 0
+        pass
+
+    async def get_worker(self, *args, **kwargs):
+        """
+        GET worker
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        pass
+
+    async def del_worker(self, *args, **kwargs):
+        """
+        DELETE worker
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        pass
 
     async def worker(self, *args, **kwargs):
         """

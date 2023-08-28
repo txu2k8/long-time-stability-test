@@ -52,7 +52,12 @@ class WorkflowBase(object):
     工作流 - 基类，统一对象/文件名、对象/文件路径等算法
     """
 
-    def __init__(self):
+    def __init__(self, write_only=False, read_only=False, delete_only=False, delete_immediately=False):
+        self.write_only = write_only
+        self.read_only = read_only
+        self.delete_only = delete_only
+        self.delete_immediately = delete_immediately
+
         # 自定义常量
         self.depth = 1
         self.start_date = "2023-01-01"  # 写入起始日期
@@ -63,12 +68,12 @@ class WorkflowBase(object):
         self.elapsed_sum = 0
 
     @staticmethod
-    def date_str_calc(start_date, date_step=1):
+    def calc_date_str(start_date, date_step=1):
         """获取 date_step 天后的日期"""
         return arrow.get(start_date).shift(days=date_step).datetime.strftime("%Y-%m-%d")
 
     @staticmethod
-    def _file_prefix_calc(obj_prefix, depth, date_prefix='', channel_id=None):
+    def _calc_file_prefix(obj_prefix, depth, date_prefix='', channel_id=None):
         """
         拼接对象/文件前缀、路径、日期前缀
         :param obj_prefix:
@@ -88,7 +93,7 @@ class WorkflowBase(object):
             prefix += f"-ch{channel_id}-"
         return prefix
 
-    def base_file_path_calc(self, idx, depth=1, date_prefix='',
+    def calc_file_path_base(self, idx, depth=1, date_prefix='',
                             file_prefix="file", idx_width=11, file_type="data", channel_id=None):
         """
         依据idx序号计算对象 path，实际为：<root_path>/{obj_path}
@@ -102,9 +107,42 @@ class WorkflowBase(object):
         :param channel_id
         :return:
         """
-        file_prefix = self._file_prefix_calc(file_prefix, depth, date_prefix, channel_id)
+        file_prefix = self._calc_file_prefix(file_prefix, depth, date_prefix, channel_id)
         file_path = file_prefix + zfill(idx, width=idx_width) + file_type
         return file_path
+
+    def _calc_put_idx(self, idx):
+        """
+        计算 idx 文件/对象是否需要上传/写入
+        :param idx:
+        :return:
+        """
+        return -1 if self.read_only or self.delete_only else idx
+
+    def _calc_get_idx(self, idx):
+        """
+        计算 idx 文件/对象是否需要下载/读取
+        :param idx:
+        :return:
+        """
+        return idx if self.read_only else -1
+
+    def _calc_del_idx(self, idx, store_num=1):
+        """
+        计算 idx 文件/对象是否需要删除
+        :param idx:
+        :param store_num: 需要保存的文件数
+        :return:
+        """
+        if self.write_only or self.read_only:
+            idx_del = -1
+        elif self.delete_immediately:
+            idx_del = idx - 1
+        elif self.delete_only:
+            idx_del = idx
+        else:
+            idx_del = idx - store_num
+        return idx_del
 
     def statistics(self, elapsed):
         """

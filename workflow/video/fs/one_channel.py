@@ -38,7 +38,7 @@ class FSVideoWorkflowOneChannel(VideoWorkflowBase):
         :param idx:
         :return:
         """
-        file_path, _ = self.file_path_calc(idx)
+        file_path, _ = self.calc_file_path(idx)
         return os.path.abspath(os.path.join(self.target, self.root_dir_name, file_path))
 
     async def worker(self, idx_put, segment):
