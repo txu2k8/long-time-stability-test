@@ -1,0 +1,148 @@
+# -*- coding:utf-8 -*-
+# # https://gitee.com/codepp/python-rtsp-multisave/tree/master
+# TODO
+
+import cv2
+import time
+import redis
+import queue
+import sys
+import threading
+from loguru import logger
+
+r_db = None
+
+
+class SaveThread(threading.Thread):
+    def __init__(self, invoker, prefix, filePath, fps, frameSize, dQueue):
+        threading.Thread.__init__(self)
+        self.invoker = invoker
+        # 存储文件前缀
+        self.prefix = prefix
+        # 存储路径
+        self.filePath = filePath
+        # 帧率
+        self.fps = fps
+        # 帧大小（width,height)
+        self.frameSize = frameSize
+        self.dQueue = dQueue
+        logger.debug(self.invoker + '——视频片段存储')
+
+    def run(self):
+        logger.debug(self.invoker + "-BEGIN" + str(time.time()))
+        # 这里采用h264编码
+        fourcc = cv2.VideoWriter_fourcc(*"X264")
+        # 命名里不要使用不允许的字符，
+        fname = self.filePath + self.prefix + time.strftime("%Y%m%d%H%M%S", time.localtime()) + '.mp4'
+        out = cv2.VideoWriter(fname, fourcc, self.fps, self.frameSize)
+        while not self.dQueue.empty():
+            try:
+                frame = self.dQueue.get()
+                # print(frame.size)
+                out.write(frame)
+            except Exception as e:
+                logger.info(e)
+        out.release()
+        out = None
+        logger.debug(self.invoker + "-END" + str(time.time()))
+
+
+class RtspThread(threading.Thread):
+    def __init__(self, thName, rtspUrl, prefix, filePath, fps, frameSize, queueSize, eventKey, eventValue):
+        threading.Thread.__init__(self)
+        # name
+        self.thName = thName
+        # rtsp流地址
+        self.rtspUrl = rtspUrl
+        # 帧率
+        self.fps = fps
+        # 帧大小（width,height)
+        self.frameSize = frameSize
+        # 存储队列大小，fps * 10秒
+        self.queueSize = queueSize
+        # redis的key
+        self.eventKey = eventKey
+        # key值
+        self.eventValue = eventValue
+        # 存储文件前缀
+        self.prefix = prefix
+        # 存储路径
+        self.filePath = filePath
+
+    def run(self):
+        saveQueue = [queue.Queue(self.queueSize), queue.Queue(self.queueSize)]
+        curQueueIdx = 0;
+        cap = cv2.VideoCapture(self.rtspUrl)
+        closed = False
+        failCnt = 0
+        winName = self.rtspUrl + "_" + str(time.time())
+        while True:
+            if cap.isOpened():
+                res, frame = cap.read()
+                if res:
+                    closed = False
+                    failCnt = 0
+                    cv2.imshow(winName, frame)
+                    cv2.waitKey(10)
+                    try:
+                        if saveQueue[curQueueIdx].full():
+                            saveQueue[curQueueIdx].get_nowait()
+                        saveQueue[curQueueIdx].put_nowait(frame)
+                    except:
+                        pass
+
+                    if (r_db.exists(self.eventKey) and int(r_db.get(self.eventKey)) == self.eventValue):
+                        # print(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        # print(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        r_db.delete(self.eventKey)
+                        # 存视频
+                        saveProc = SaveThread(self.thName, self.prefix, self.filePath, self.fps, self.frameSize,
+                                              saveQueue[curQueueIdx])
+                        saveProc.start()
+                        # 切换缓存队列
+                        curQueueIdx = (curQueueIdx + 1) % 2
+
+                else:
+                    failCnt += 1
+                    if (failCnt >= 15):
+                        closed = True
+            else:
+                closed = True
+            if closed:
+                # 休眠10秒钟 重连
+                logger.info("reconnect: " + self.rtspUrl)
+                time.sleep(5)
+                cap.open(self.rtspUrl)
+
+
+if __name__ == '__main__':
+
+    r_db = redis.StrictRedis(host='localhost', port=6379, db=0)
+    try:
+        # 如果有多个流要同时取存，可以创建多个线程
+        thread1 = RtspThread("thread_vs",
+                             "rtsp://admin:12345@x.x.x./stream/main/ch1",
+                             "ch1_",
+                             "",  # 为空串时，默认保存在当前目前
+                             16,
+                             (1920, 1080),
+                             150,
+                             "key",
+                             1)
+        thread1.start()
+
+        thread2 = RtspThread("thread_ir",
+                             "rtsp://admin:12345@x.x.x./stream/main/ch2",
+                             "ch2_",
+                             "",  # 为空串时，默认保存在当前目前
+                             16,
+                             (1920, 1080),
+                             150,
+                             "key",
+                             2)
+        thread2.start()
+
+    except Exception as e:
+        logger.info(e)
+
+    cv2.destroyAllWindows()
