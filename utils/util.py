@@ -1,6 +1,7 @@
 import os
 import time
 import re
+import json
 import random
 import string
 import hashlib
@@ -86,6 +87,23 @@ def get_local_files(local_path, brief_tags=False, with_rb_data=False, segments=1
                         file_info.rb_data_list.append(file_s_info)
             file_list.append(file_info)
     return file_list
+
+
+def loads_json_data(json_file):
+    """
+    加载JSON文件中json字符串内容，返回字典/列表
+    :param json_file:
+    :return:
+    """
+    d = {}
+    with open(json_file, "r") as f:
+        try:
+            d = json.loads(f.read())
+        except json.decoder.JSONDecodeError:
+            logger.error(f"Failed to JSON parse {json_file}")
+        except Exception as e:
+            logger.error(e)
+    return d
 
 
 def mkdir_if_not_exist(dir_path):

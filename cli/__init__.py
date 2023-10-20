@@ -12,8 +12,9 @@ from cli import check
 from cli import tools
 from cli import video_s3
 from cli import video_fs
+from cli import video_rtsp
 
 
 __all__ = [
-    stress_s3, check, tools, video_s3, video_fs
+    stress_s3, check, tools, video_s3, video_fs, video_rtsp
 ]

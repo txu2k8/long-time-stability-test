@@ -9,52 +9,21 @@
 """
 import os
 import datetime
-import subprocess
-import asyncio
 import aiofiles
 
 from loguru import logger
+from client.base_client import BaseClient
 
 # --- OS constants
 POSIX = os.name == "posix"
 WINDOWS = os.name == "nt"
 
 
-class FileOps(object):
+class FileOps(BaseClient):
     """文件操作"""
     def __init__(self):
+        super(FileOps, self).__init__()
         pass
-
-    @staticmethod
-    def _exec(cmd):
-        start = datetime.datetime.now()
-        rc, output = subprocess.getstatusoutput(cmd)
-        end = datetime.datetime.now()
-        elapsed = (end - start).total_seconds()  # 耗时 x.y 秒
-        logger.debug(output.strip('\n'))
-        return rc, elapsed, output
-
-    @staticmethod
-    async def _async_exec(cmd):
-        """
-        异步执行命令
-        :param cmd:
-        :return:
-        """
-        start = datetime.datetime.now()
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE)
-        stdout, stderr = await proc.communicate()
-        end = datetime.datetime.now()
-        elapsed = (end - start).total_seconds()  # 耗时 x.y 秒
-        rc = proc.returncode
-        if stdout:
-            logger.debug(stdout.decode().strip('\n'))
-        if stderr:
-            logger.error('Response({}):\n{}'.format(cmd, stderr.decode().strip('\n')))
-        return rc, elapsed, stdout, stderr
 
     def file_cp(self, src_path, dst_path):
         """
